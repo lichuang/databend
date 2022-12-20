@@ -31,6 +31,10 @@ use crate::TypeDeserializerImpl;
 pub struct DataSchema {
     pub(crate) fields: Vec<DataField>,
     pub(crate) metadata: BTreeMap<String, String>,
+
+    // Never serialized.
+    #[serde(skip_serializing)]
+    pub(crate) undeleted_fields: Vec<DataField>,
 }
 
 impl DataSchema {
@@ -38,24 +42,45 @@ impl DataSchema {
         Self {
             fields: vec![],
             metadata: BTreeMap::new(),
+            undeleted_fields: vec![],
         }
     }
 
     pub fn new(fields: Vec<DataField>) -> Self {
+        let undeleted_fields = DataSchema::undeleted_fields(&fields);
         Self {
             fields,
             metadata: BTreeMap::new(),
+            undeleted_fields,
         }
     }
 
     pub fn new_from(fields: Vec<DataField>, metadata: BTreeMap<String, String>) -> Self {
-        Self { fields, metadata }
+        let undeleted_fields = DataSchema::undeleted_fields(&fields);
+        Self {
+            fields,
+            metadata,
+            undeleted_fields,
+        }
     }
 
-    /// Returns an immutable reference of the vector of `Field` instances.
+    pub fn modify_field(&mut self, i: usize, field: DataField) {
+        assert!(i < self.fields.len());
+        self.fields.insert(i, field);
+    }
+
+    pub fn undeleted_fields(fields: &Vec<DataField>) -> Vec<DataField> {
+        fields
+            .into_iter()
+            .filter(|f| !f.is_deleted())
+            .cloned()
+            .collect()
+    }
+
+    /// Returns an immutable reference of the vector of undeleted `Field` instances.
     #[inline]
-    pub const fn fields(&self) -> &Vec<DataField> {
-        &self.fields
+    pub fn fields(&self) -> &Vec<DataField> {
+        &&self.undeleted_fields
     }
 
     #[inline]
@@ -147,7 +172,7 @@ impl DataSchema {
         let paths: Vec<Vec<usize>> = path_indices.values().cloned().collect();
         let fields = paths
             .iter()
-            .map(|path| Self::traverse_paths(self.fields(), path).unwrap())
+            .map(|path| Self::traverse_paths(&self.fields(), path).unwrap())
             .collect();
         Self::new_from(fields, self.meta().clone())
     }
@@ -213,6 +238,17 @@ impl DataSchema {
             deserializers.push(data_type.create_deserializer(capacity));
         }
         deserializers
+    }
+
+    pub fn add(&mut self, other: &DataSchema) {
+        other
+            .fields
+            .iter()
+            .for_each(|e| self.fields.push(e.to_owned()));
+        other.metadata.iter().for_each(|(k, v)| {
+            self.metadata.insert(k.to_owned(), v.to_owned());
+        });
+        self.undeleted_fields = DataSchema::undeleted_fields(&self.fields);
     }
 }
 

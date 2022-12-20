@@ -27,6 +27,7 @@ pub struct DataField {
     /// default_expr is serialized representation from PlanExpression
     default_expr: Option<String>,
     data_type: DataTypeImpl,
+    deleted: Option<()>,
 }
 
 impl DataField {
@@ -35,6 +36,7 @@ impl DataField {
             name: name.to_string(),
             default_expr: None,
             data_type,
+            deleted: None,
         }
     }
 
@@ -44,7 +46,16 @@ impl DataField {
             name: name.to_string(),
             default_expr: None,
             data_type,
+            deleted: None,
         }
+    }
+
+    pub fn delete(&mut self) {
+        self.deleted = Some(());
+    }
+
+    pub fn is_deleted(&self) -> bool {
+        self.deleted.is_some()
     }
 
     #[must_use]
