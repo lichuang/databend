@@ -22,12 +22,19 @@ use crate::wrap_nullable;
 use crate::TypeID;
 
 #[derive(serde::Serialize, serde::Deserialize, Eq, PartialEq, Clone)]
+enum DataFieldTag {
+    Delete,
+    Add,
+    Create,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Eq, PartialEq, Clone)]
 pub struct DataField {
     name: String,
     /// default_expr is serialized representation from PlanExpression
     default_expr: Option<String>,
     data_type: DataTypeImpl,
-    deleted: Option<()>,
+    tag: Option<DataFieldTag>,
 }
 
 impl DataField {
@@ -36,7 +43,7 @@ impl DataField {
             name: name.to_string(),
             default_expr: None,
             data_type,
-            deleted: None,
+            tag: Some(DataFieldTag::Create),
         }
     }
 
@@ -46,16 +53,20 @@ impl DataField {
             name: name.to_string(),
             default_expr: None,
             data_type,
-            deleted: None,
+            tag: Some(DataFieldTag::Create),
         }
     }
 
-    pub fn delete(&mut self) {
-        self.deleted = Some(());
+    pub fn tag_delete(&mut self) {
+        self.tag = Some(DataFieldTag::Delete);
+    }
+
+    pub fn tag_add(&mut self) {
+        self.tag = Some(DataFieldTag::Add);
     }
 
     pub fn is_deleted(&self) -> bool {
-        self.deleted.is_some()
+        self.tag == Some(DataFieldTag::Delete)
     }
 
     #[must_use]
@@ -74,6 +85,21 @@ impl DataField {
 
     pub fn default_expr(&self) -> Option<&String> {
         self.default_expr.as_ref()
+    }
+
+    // Return default expression or the default value of data type
+    pub fn default_expr_or_default_value(&self) -> Vec<u8> {
+        match self.default_expr {
+            Some(ref default_expr) => default_expr.clone().as_bytes().to_vec(),
+            None => {
+                return self
+                    .data_type
+                    .default_value()
+                    .to_string()
+                    .as_bytes()
+                    .to_vec();
+            }
+        }
     }
 
     #[inline]

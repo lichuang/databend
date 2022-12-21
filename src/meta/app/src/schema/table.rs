@@ -214,7 +214,7 @@ impl TableMeta {
         let i = self.schema.index_of(column)?;
         let field = self.schema.field(i);
         let mut new_field = field.to_owned();
-        new_field.delete();
+        new_field.tag_delete();
         let mut new_schema = self.schema.as_ref().to_owned();
         new_schema.modify_field(i, new_field);
         self.schema = Arc::new(new_schema);
