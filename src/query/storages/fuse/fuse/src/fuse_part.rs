@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use common_catalog::plan::PartInfo;
 use common_catalog::plan::PartInfoPtr;
+use common_datavalues::DataField;
 use common_exception::ErrorCode;
 use common_exception::Result;
 use common_storages_table_meta::meta::Compression;
@@ -44,9 +45,9 @@ impl ColumnMeta {
 
 // TODO: May be a better type name instead?
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-pub enum ColumnMetaWithDefault {
+pub enum OutputColumnMeta {
     ColumnMeta(ColumnMeta),
-    DefaultValue(Vec<u8>),
+    DataField(DataField),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -61,7 +62,7 @@ pub struct FusePartInfo {
 
     // Never serialized.
     #[serde(skip_serializing)]
-    pub columns_meta_default_val: HashMap<usize, ColumnMetaWithDefault>,
+    pub output_columns_meta: HashMap<usize, OutputColumnMeta>,
 }
 
 #[typetag::serde(name = "fuse")]
@@ -89,12 +90,12 @@ impl FusePartInfo {
         location: String,
         format_version: u64,
         rows_count: u64,
-        columns_meta_default_val: HashMap<usize, ColumnMetaWithDefault>,
+        output_columns_meta: HashMap<usize, OutputColumnMeta>,
         compression: Compression,
     ) -> Arc<Box<dyn PartInfo>> {
         let mut columns_meta = HashMap::new();
-        columns_meta_default_val.into_iter().for_each(|(i, e)| {
-            if let ColumnMetaWithDefault::ColumnMeta(ref meta) = e {
+        output_columns_meta.into_iter().for_each(|(i, e)| {
+            if let OutputColumnMeta::ColumnMeta(ref meta) = e {
                 columns_meta.insert(i, meta.clone());
             }
         });
@@ -104,7 +105,7 @@ impl FusePartInfo {
             columns_meta,
             nums_rows: rows_count as usize,
             compression,
-            columns_meta_default_val: HashMap::new(),
+            output_columns_meta: HashMap::new(),
         }))
     }
 

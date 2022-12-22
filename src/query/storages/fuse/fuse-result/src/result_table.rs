@@ -151,7 +151,7 @@ impl Table for ResultTable {
         let limit = push_downs.map_or(usize::MAX, |e| e.limit.unwrap_or(usize::MAX));
         match meta.storage {
             ResultStorageInfo::FuseSegment(seg) => Ok(FuseTable::all_columns_partitions(
-                self.meta.query.schema.clone(),
+                Some(self.meta.query.schema.clone()),
                 &seg.blocks,
                 limit,
             )),
