@@ -23,9 +23,9 @@ use crate::TypeID;
 
 #[derive(serde::Serialize, serde::Deserialize, Eq, PartialEq, Clone)]
 enum DataFieldTag {
-    Delete,
-    Add,
     Create,
+    Add,
+    Delete,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Eq, PartialEq, Clone)]

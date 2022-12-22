@@ -132,6 +132,6 @@ impl ResultTableWriter {
 
     pub fn get_last_part_info(&mut self) -> PartInfoPtr {
         let meta = self.accumulator.blocks_metas.last().unwrap();
-        FuseTable::all_columns_part(meta)
+        FuseTable::all_columns_part(&self.query_info.schema, meta)
     }
 }

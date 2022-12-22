@@ -36,6 +36,7 @@ use tracing::info;
 
 use crate::fuse_lazy_part::FuseLazyPartInfo;
 use crate::fuse_part::ColumnMeta;
+use crate::fuse_part::ColumnMetaWithDefault;
 use crate::fuse_part::FusePartInfo;
 use crate::pruning::BlockPruner;
 use crate::FuseTable;
@@ -142,7 +143,8 @@ impl FuseTable {
 
         let partitions_scanned = block_metas.len();
 
-        let (mut statistics, parts) = Self::to_partitions(&block_metas, &column_leaves, push_downs);
+        let (mut statistics, parts) =
+            Self::to_partitions(schema, &block_metas, &column_leaves, push_downs);
 
         // Update planner statistics.
         statistics.partitions_total = partitions_total;
@@ -158,6 +160,7 @@ impl FuseTable {
     }
 
     pub fn to_partitions(
+        schema: DataSchemaRef,
         blocks_metas: &[Arc<BlockMeta>],
         column_leaves: &ColumnLeaves,
         push_down: Option<PushDownInfo>,
@@ -169,12 +172,16 @@ impl FuseTable {
             .unwrap_or(usize::MAX);
 
         let (mut statistics, partitions) = match &push_down {
-            None => Self::all_columns_partitions(blocks_metas, limit),
+            None => Self::all_columns_partitions(schema, blocks_metas, limit),
             Some(extras) => match &extras.projection {
-                None => Self::all_columns_partitions(blocks_metas, limit),
-                Some(projection) => {
-                    Self::projection_partitions(blocks_metas, column_leaves, projection, limit)
-                }
+                None => Self::all_columns_partitions(schema, blocks_metas, limit),
+                Some(projection) => Self::projection_partitions(
+                    schema,
+                    blocks_metas,
+                    column_leaves,
+                    projection,
+                    limit,
+                ),
             },
         };
 
@@ -190,6 +197,7 @@ impl FuseTable {
     }
 
     pub fn all_columns_partitions(
+        schema: DataSchemaRef,
         metas: &[Arc<BlockMeta>],
         limit: usize,
     ) -> (PartStatistics, Partitions) {
@@ -206,7 +214,7 @@ impl FuseTable {
             let rows = block_meta.row_count as usize;
             partitions
                 .partitions
-                .push(Self::all_columns_part(block_meta));
+                .push(Self::all_columns_part(&schema, block_meta));
             statistics.read_rows += rows;
             statistics.read_bytes += block_meta.block_size as usize;
 
@@ -225,6 +233,7 @@ impl FuseTable {
     }
 
     fn projection_partitions(
+        schema: DataSchemaRef,
         metas: &[Arc<BlockMeta>],
         column_leaves: &ColumnLeaves,
         projection: &Projection,
@@ -241,6 +250,7 @@ impl FuseTable {
 
         for block_meta in metas {
             partitions.partitions.push(Self::projection_part(
+                &schema,
                 block_meta,
                 column_leaves,
                 projection,
@@ -252,8 +262,9 @@ impl FuseTable {
             for column in &columns {
                 let indices = &column.leaf_ids;
                 for index in indices {
-                    let col_metas = &block_meta.col_metas[&(*index as u32)];
-                    statistics.read_bytes += col_metas.len as usize;
+                    if let Some(col_metas) = block_meta.col_metas.get(&(*index as u32)) {
+                        statistics.read_bytes += col_metas.len as usize;
+                    }
                 }
             }
 
@@ -270,14 +281,25 @@ impl FuseTable {
         (statistics, partitions)
     }
 
-    pub fn all_columns_part(meta: &BlockMeta) -> PartInfoPtr {
-        let mut columns_meta = HashMap::with_capacity(meta.col_metas.len());
+    pub fn all_columns_part(schema: &DataSchemaRef, meta: &BlockMeta) -> PartInfoPtr {
+        let mut columns_meta_default_val = HashMap::with_capacity(schema.num_fields());
 
-        for (idx, column_meta) in &meta.col_metas {
-            columns_meta.insert(
-                *idx as usize,
-                ColumnMeta::create(column_meta.offset, column_meta.len, column_meta.num_values),
-            );
+        for (idx, field) in schema.fields().into_iter().enumerate() {
+            if let Some(column_meta) = meta.col_metas.get(&(idx as u32)) {
+                columns_meta_default_val.insert(
+                    idx,
+                    ColumnMetaWithDefault::ColumnMeta(ColumnMeta::create(
+                        column_meta.offset,
+                        column_meta.len,
+                        column_meta.num_values,
+                    )),
+                );
+            } else {
+                columns_meta_default_val.insert(
+                    idx,
+                    ColumnMetaWithDefault::DefaultValue(field.default_expr_or_default_value()),
+                );
+            }
         }
 
         let rows_count = meta.row_count;
@@ -287,28 +309,38 @@ impl FuseTable {
             location,
             format_version,
             rows_count,
-            columns_meta,
+            columns_meta_default_val,
             meta.compression(),
         )
     }
 
     fn projection_part(
+        schema: &DataSchemaRef,
         meta: &BlockMeta,
         column_leaves: &ColumnLeaves,
         projection: &Projection,
     ) -> PartInfoPtr {
-        let mut columns_meta = HashMap::with_capacity(projection.len());
-
+        let mut columns_meta_default_val = HashMap::with_capacity(projection.len());
         let columns = projection.project_column_leaves(column_leaves).unwrap();
         for column in &columns {
             let indices = &column.leaf_ids;
             for index in indices {
-                let column_meta = &meta.col_metas[&(*index as u32)];
-
-                columns_meta.insert(
-                    *index,
-                    ColumnMeta::create(column_meta.offset, column_meta.len, column_meta.num_values),
-                );
+                if let Some(column_meta) = meta.col_metas.get(&(*index as u32)) {
+                    columns_meta_default_val.insert(
+                        *index,
+                        ColumnMetaWithDefault::ColumnMeta(ColumnMeta::create(
+                            column_meta.offset,
+                            column_meta.len,
+                            column_meta.num_values,
+                        )),
+                    );
+                } else {
+                    let field = schema.field(*index);
+                    columns_meta_default_val.insert(
+                        *index,
+                        ColumnMetaWithDefault::DefaultValue(field.default_expr_or_default_value()),
+                    );
+                }
             }
         }
 
@@ -322,7 +354,7 @@ impl FuseTable {
             location,
             format_version,
             rows_count,
-            columns_meta,
+            columns_meta_default_val,
             meta.compression(),
         )
     }

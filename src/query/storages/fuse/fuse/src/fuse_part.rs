@@ -25,7 +25,7 @@ use common_exception::ErrorCode;
 use common_exception::Result;
 use common_storages_table_meta::meta::Compression;
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Eq, Clone)]
 pub struct ColumnMeta {
     pub offset: u64,
     pub length: u64,
@@ -41,6 +41,14 @@ impl ColumnMeta {
         }
     }
 }
+
+// TODO: May be a better type name instead?
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub enum ColumnMetaWithDefault {
+    ColumnMeta(ColumnMeta),
+    DefaultValue(Vec<u8>),
+}
+
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct FusePartInfo {
     pub location: String,
@@ -50,6 +58,10 @@ pub struct FusePartInfo {
     pub nums_rows: usize,
     pub columns_meta: HashMap<usize, ColumnMeta>,
     pub compression: Compression,
+
+    // Never serialized.
+    #[serde(skip_serializing)]
+    pub columns_meta_default_val: HashMap<usize, ColumnMetaWithDefault>,
 }
 
 #[typetag::serde(name = "fuse")]
@@ -77,15 +89,22 @@ impl FusePartInfo {
         location: String,
         format_version: u64,
         rows_count: u64,
-        columns_meta: HashMap<usize, ColumnMeta>,
+        columns_meta_default_val: HashMap<usize, ColumnMetaWithDefault>,
         compression: Compression,
     ) -> Arc<Box<dyn PartInfo>> {
+        let mut columns_meta = HashMap::new();
+        columns_meta_default_val.into_iter().for_each(|(i, e)| {
+            if let ColumnMetaWithDefault::ColumnMeta(ref meta) = e {
+                columns_meta.insert(i, meta.clone());
+            }
+        });
         Arc::new(Box::new(FusePartInfo {
             location,
             format_version,
             columns_meta,
             nums_rows: rows_count as usize,
             compression,
+            columns_meta_default_val: HashMap::new(),
         }))
     }
 
