@@ -102,6 +102,14 @@ impl Interpreter for AddTableColumnInterpreter {
             let tenant = self.ctx.get_tenant();
             let db_name = self.ctx.get_current_database();
             catalog.update_table_meta(&tenant, &db_name, req).await?;
+
+            // currently, context caches the table, we have to "refresh"
+            // the table by using the catalog API directly
+            let new_table = self
+                .ctx
+                .get_catalog(&catalog_name)?
+                .get_table(self.ctx.get_tenant().as_str(), &db_name, tbl_name)
+                .await?;
         };
 
         Ok(PipelineBuildResult::create())

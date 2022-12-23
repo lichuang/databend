@@ -150,11 +150,9 @@ impl Table for ResultTable {
         let meta: ResultTableMeta = serde_json::from_slice(&meta_data)?;
         let limit = push_downs.map_or(usize::MAX, |e| e.limit.unwrap_or(usize::MAX));
         match meta.storage {
-            ResultStorageInfo::FuseSegment(seg) => Ok(FuseTable::all_columns_partitions(
-                Some(self.meta.query.schema.clone()),
-                &seg.blocks,
-                limit,
-            )),
+            ResultStorageInfo::FuseSegment(seg) => {
+                Ok(FuseTable::all_columns_partitions(&seg.blocks, limit))
+            }
         }
     }
 

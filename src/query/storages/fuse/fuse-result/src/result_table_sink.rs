@@ -104,7 +104,7 @@ impl ResultTableSink {
     }
     pub fn get_last_part_info(&mut self) -> PartInfoPtr {
         let meta = self.accumulator.blocks_metas.last().unwrap();
-        FuseTable::all_columns_part(&Some(self.query_info.schema.clone()), meta)
+        FuseTable::all_columns_part(meta)
     }
 
     async fn push(&mut self, block: DataBlock) -> Result<()> {
