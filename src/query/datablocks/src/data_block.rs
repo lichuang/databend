@@ -298,7 +298,7 @@ impl DataBlock {
     pub fn from_chunk_or_field<A: AsRef<dyn Array>>(
         schema: &DataSchemaRef,
         chuck: &Chunk<A>,
-        values: Vec<Option<DataField>>,
+        data_fields: &Vec<Option<DataField>>,
         num_rows: usize,
     ) -> Result<DataBlock> {
         let mut data_block = DataBlock::create(Arc::new(DataSchema::empty()), vec![]);
@@ -307,7 +307,7 @@ impl DataBlock {
         let chunk_columns = chuck.columns();
 
         let schema_fields = schema.fields();
-        for (_i, field) in values.into_iter().enumerate() {
+        for (_i, field) in data_fields.into_iter().enumerate() {
             match field {
                 Some(ref f) => {
                     let default_value = f.data_type().default_value();

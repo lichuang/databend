@@ -31,6 +31,7 @@ use common_arrow::parquet::read::PageReader;
 use common_catalog::plan::PartInfoPtr;
 use common_catalog::plan::Projection;
 use common_datablocks::DataBlock;
+use common_datavalues::DataField;
 use common_datavalues::DataSchemaRef;
 use common_exception::ErrorCode;
 use common_exception::Result;
@@ -134,16 +135,17 @@ impl BlockReader {
 
     #[tracing::instrument(level = "debug", skip_all)]
     pub async fn read_with_block_meta(&self, meta: &BlockMeta) -> Result<DataBlock> {
-        let (num_rows, columns_array_iter) = self.read_columns_with_block_meta(meta).await?;
+        let (num_rows, columns_array_iter, data_fields) =
+            self.read_columns_with_block_meta(meta).await?;
         let mut deserializer = RowGroupDeserializer::new(columns_array_iter, num_rows, None);
-        self.try_next_block(&mut deserializer)
+        self.try_next_block(&mut deserializer, data_fields, num_rows)
     }
     // TODO refine these
 
     pub async fn read_columns_with_block_meta(
         &self,
         meta: &BlockMeta,
-    ) -> Result<(usize, Vec<ArrayIter<'static>>)> {
+    ) -> Result<(usize, Vec<ArrayIter<'static>>, Vec<Option<DataField>>)> {
         let num_rows = meta.row_count as usize;
         let num_cols = self.projection.len();
         let mut column_chunk_futs = Vec::with_capacity(num_cols);
@@ -179,40 +181,56 @@ impl BlockReader {
         let mut chunk_map: HashMap<usize, Vec<u8>> = chunks.into_iter().collect();
         let mut cnt_map = Self::build_projection_count_map(&columns);
         let mut columns_array_iter = Vec::with_capacity(num_cols);
-        for column in &columns {
+        let mut data_fields = Vec::new();
+        for (i, column) in columns.into_iter().enumerate() {
             let field = column.field.clone();
             let indices = &column.leaf_ids;
             let mut column_metas = Vec::with_capacity(indices.len());
             let mut column_chunks = Vec::with_capacity(indices.len());
             let mut column_descriptors = Vec::with_capacity(indices.len());
+            let mut column_in_block_meta = false;
             for index in indices {
-                let column_meta = &columns_meta[index];
-                let cnt = cnt_map.get_mut(index).unwrap();
-                *cnt -= 1;
-                let column_chunk = if cnt > &mut 0 {
-                    chunk_map.get(index).unwrap().clone()
+                // Handle the case that: Partition only has one column, but alter table has add other column,
+                // so there may be chance that part.columns_meta dose not has index column.
+                if let Some(column_meta) = columns_meta.get(index) {
+                    column_in_block_meta = true;
+                    let cnt = cnt_map.get_mut(index).unwrap();
+                    *cnt -= 1;
+                    let column_chunk = if cnt > &mut 0 {
+                        chunk_map.get(index).unwrap().clone()
+                    } else {
+                        chunk_map.remove(index).unwrap()
+                    };
+                    let column_descriptor = &self.parquet_schema_descriptor.columns()[*index];
+                    column_metas.push(column_meta);
+                    column_chunks.push(column_chunk);
+                    column_descriptors.push(column_descriptor);
                 } else {
-                    chunk_map.remove(index).unwrap()
-                };
-                let column_descriptor = &self.parquet_schema_descriptor.columns()[*index];
-                column_metas.push(column_meta);
-                column_chunks.push(column_chunk);
-                column_descriptors.push(column_descriptor);
+                    break;
+                }
             }
-            columns_array_iter.push(Self::to_array_iter(
-                column_metas,
-                column_chunks,
-                num_rows,
-                column_descriptors,
-                field,
-                &meta.compression(),
-            )?);
+            if column_in_block_meta {
+                columns_array_iter.push(Self::to_array_iter(
+                    column_metas,
+                    column_chunks,
+                    num_rows,
+                    column_descriptors,
+                    field,
+                    &meta.compression,
+                )?);
+                data_fields.push(None);
+            } else {
+                data_fields.push(Some(self.projected_schema.field(i).clone()));
+            }
         }
 
-        Ok((num_rows, columns_array_iter))
+        Ok((num_rows, columns_array_iter, data_fields))
     }
 
-    async fn read_columns(&self, part: PartInfoPtr) -> Result<(usize, Vec<ArrayIter<'static>>)> {
+    async fn read_columns(
+        &self,
+        part: PartInfoPtr,
+    ) -> Result<(usize, Vec<ArrayIter<'static>>, Vec<Option<DataField>>)> {
         let part = FusePartInfo::from_part(&part)?;
 
         // TODO: add prefetch column data.
@@ -244,37 +262,48 @@ impl BlockReader {
         let mut chunk_map: HashMap<usize, Vec<u8>> = chunks.into_iter().collect();
         let mut cnt_map = Self::build_projection_count_map(&columns);
         let mut columns_array_iter = Vec::with_capacity(num_cols);
-        for column in &columns {
+        let mut data_fields = Vec::new();
+        for (i, column) in columns.into_iter().enumerate() {
             let field = column.field.clone();
             let indices = &column.leaf_ids;
             let mut column_metas = Vec::with_capacity(indices.len());
             let mut column_chunks = Vec::with_capacity(indices.len());
             let mut column_descriptors = Vec::with_capacity(indices.len());
+            let mut column_in_block_meta = false;
             for index in indices {
-                let column_meta = &part.columns_meta[index];
-                let cnt = cnt_map.get_mut(index).unwrap();
-                *cnt -= 1;
-                let column_chunk = if cnt > &mut 0 {
-                    chunk_map.get(index).unwrap().clone()
+                if let Some(column_meta) = part.columns_meta.get(index) {
+                    column_in_block_meta = true;
+                    let cnt = cnt_map.get_mut(index).unwrap();
+                    *cnt -= 1;
+                    let column_chunk = if cnt > &mut 0 {
+                        chunk_map.get(index).unwrap().clone()
+                    } else {
+                        chunk_map.remove(index).unwrap()
+                    };
+                    let column_descriptor = &self.parquet_schema_descriptor.columns()[*index];
+                    column_metas.push(column_meta);
+                    column_chunks.push(column_chunk);
+                    column_descriptors.push(column_descriptor);
                 } else {
-                    chunk_map.remove(index).unwrap()
-                };
-                let column_descriptor = &self.parquet_schema_descriptor.columns()[*index];
-                column_metas.push(column_meta);
-                column_chunks.push(column_chunk);
-                column_descriptors.push(column_descriptor);
+                    break;
+                }
             }
-            columns_array_iter.push(Self::to_array_iter(
-                column_metas,
-                column_chunks,
-                num_rows,
-                column_descriptors,
-                field,
-                &part.compression,
-            )?);
+            if column_in_block_meta {
+                columns_array_iter.push(Self::to_array_iter(
+                    column_metas,
+                    column_chunks,
+                    num_rows,
+                    column_descriptors,
+                    field,
+                    &part.compression,
+                )?);
+                data_fields.push(None);
+            } else {
+                data_fields.push(Some(self.projected_schema.field(i).clone()));
+            }
         }
 
-        Ok((num_rows, columns_array_iter))
+        Ok((num_rows, columns_array_iter, data_fields))
     }
 
     pub fn deserialize(
@@ -289,39 +318,52 @@ impl BlockReader {
         let num_rows = part.nums_rows;
         let columns = self.projection.project_column_leaves(&self.column_leaves)?;
         let mut cnt_map = Self::build_projection_count_map(&columns);
-        for column in &columns {
+        let mut data_fields = Vec::new();
+        for (i, column) in columns.into_iter().enumerate() {
             let field = column.field.clone();
             let indices = &column.leaf_ids;
             let mut column_metas = Vec::with_capacity(indices.len());
             let mut column_chunks = Vec::with_capacity(indices.len());
             let mut column_descriptors = Vec::with_capacity(indices.len());
+            let mut column_in_block_meta = false;
             for index in indices {
-                let column_meta = &part.columns_meta[index];
-                let cnt = cnt_map.get_mut(index).unwrap();
-                *cnt -= 1;
-                let column_chunk = if cnt > &mut 0 {
-                    chunk_map.get(index).unwrap().clone()
+                // Handle the case that: Partition only has one column, but alter table has add other column,
+                // so there may be chance that part.columns_meta dose not has index column.
+                if let Some(column_meta) = part.columns_meta.get(index) {
+                    column_in_block_meta = true;
+                    let cnt = cnt_map.get_mut(index).unwrap();
+                    *cnt -= 1;
+                    let column_chunk = if cnt > &mut 0 {
+                        chunk_map.get(index).unwrap().clone()
+                    } else {
+                        chunk_map.remove(index).unwrap()
+                    };
+                    let column_descriptor = &self.parquet_schema_descriptor.columns()[*index];
+                    column_metas.push(column_meta);
+                    column_chunks.push(column_chunk);
+                    column_descriptors.push(column_descriptor);
                 } else {
-                    chunk_map.remove(index).unwrap()
-                };
-                let column_descriptor = &self.parquet_schema_descriptor.columns()[*index];
-                column_metas.push(column_meta);
-                column_chunks.push(column_chunk);
-                column_descriptors.push(column_descriptor);
+                    break;
+                }
             }
-            columns_array_iter.push(Self::to_array_iter(
-                column_metas,
-                column_chunks,
-                num_rows,
-                column_descriptors,
-                field,
-                &part.compression,
-            )?);
+            if column_in_block_meta {
+                columns_array_iter.push(Self::to_array_iter(
+                    column_metas,
+                    column_chunks,
+                    num_rows,
+                    column_descriptors,
+                    field,
+                    &part.compression,
+                )?);
+                data_fields.push(None);
+            } else {
+                data_fields.push(Some(self.projected_schema.field(i).clone()));
+            }
         }
 
         let mut deserializer = RowGroupDeserializer::new(columns_array_iter, num_rows, None);
 
-        self.try_next_block(&mut deserializer)
+        self.try_next_block(&mut deserializer, data_fields, num_rows)
     }
 
     pub async fn read_columns_data(&self, part: PartInfoPtr) -> Result<Vec<(usize, Vec<u8>)>> {
@@ -355,16 +397,18 @@ impl BlockReader {
         let mut results = Vec::with_capacity(indices.len());
 
         for index in indices {
-            let column_meta = &part.columns_meta[&index];
+            // Handle the case that: Partition only has one column, but alter table has add other column,
+            // so there may be chance that part.columns_meta dose not has index column.
+            if let Some(column_meta) = part.columns_meta.get(&index) {
+                let op = self.operator.clone();
 
-            let op = self.operator.clone();
+                let location = part.location.clone();
+                let offset = column_meta.offset;
+                let length = column_meta.length;
 
-            let location = part.location.clone();
-            let offset = column_meta.offset;
-            let length = column_meta.length;
-
-            let result = Self::sync_read_column(op.object(&location), index, offset, length);
-            results.push(result?);
+                let result = Self::sync_read_column(op.object(&location), index, offset, length);
+                results.push(result?);
+            }
         }
 
         Ok(results)
@@ -393,18 +437,28 @@ impl BlockReader {
 
     #[tracing::instrument(level = "debug", skip_all)]
     pub async fn read(&self, part: PartInfoPtr) -> Result<DataBlock> {
-        let (num_rows, columns_array_iter) = self.read_columns(part).await?;
+        let (num_rows, columns_array_iter, values) = self.read_columns(part).await?;
         let mut deserializer = RowGroupDeserializer::new(columns_array_iter, num_rows, None);
-        self.try_next_block(&mut deserializer)
+        self.try_next_block(&mut deserializer, values, num_rows)
     }
 
-    fn try_next_block(&self, deserializer: &mut RowGroupDeserializer) -> Result<DataBlock> {
+    fn try_next_block(
+        &self,
+        deserializer: &mut RowGroupDeserializer,
+        data_fields: Vec<Option<DataField>>,
+        num_rows: usize,
+    ) -> Result<DataBlock> {
         match deserializer.next() {
             None => Err(ErrorCode::Internal(
                 "deserializer from row group: fail to get a chunk",
             )),
             Some(Err(cause)) => Err(ErrorCode::from(cause)),
-            Some(Ok(chunk)) => DataBlock::from_chunk(&self.projected_schema, &chunk),
+            Some(Ok(chunk)) => DataBlock::from_chunk_or_field(
+                &self.projected_schema,
+                &chunk,
+                &data_fields,
+                num_rows,
+            ),
         }
     }
 

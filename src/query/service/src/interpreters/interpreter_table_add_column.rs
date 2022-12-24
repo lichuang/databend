@@ -105,7 +105,7 @@ impl Interpreter for AddTableColumnInterpreter {
 
             // currently, context caches the table, we have to "refresh"
             // the table by using the catalog API directly
-            let new_table = self
+            let _new_table = self
                 .ctx
                 .get_catalog(&catalog_name)?
                 .get_table(self.ctx.get_tenant().as_str(), &db_name, tbl_name)

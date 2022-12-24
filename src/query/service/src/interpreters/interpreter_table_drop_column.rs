@@ -70,7 +70,9 @@ impl Interpreter for DropTableColumnInterpreter {
 
             let catalog = self.ctx.get_catalog(catalog_name)?;
             let mut new_table_meta = table.get_table_info().meta.clone();
+            println!("before drop:{:?}", new_table_meta.schema);
             new_table_meta.drop_column(&self.plan.column)?;
+            println!("after drop:{:?}", new_table_meta.schema);
 
             let table_id = table_info.ident.table_id;
             let table_version = table_info.ident.seq;
@@ -84,6 +86,14 @@ impl Interpreter for DropTableColumnInterpreter {
             let tenant = self.ctx.get_tenant();
             let db_name = self.ctx.get_current_database();
             catalog.update_table_meta(&tenant, &db_name, req).await?;
+
+            // currently, context caches the table, we have to "refresh"
+            // the table by using the catalog API directly
+            let _new_table = self
+                .ctx
+                .get_catalog(&catalog_name)?
+                .get_table(self.ctx.get_tenant().as_str(), &db_name, tbl_name)
+                .await?;
         };
 
         Ok(PipelineBuildResult::create())

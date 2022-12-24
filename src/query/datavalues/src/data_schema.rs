@@ -66,7 +66,11 @@ impl DataSchema {
 
     pub fn modify_field(&mut self, i: usize, field: DataField) {
         assert!(i < self.fields.len());
-        self.fields.insert(i, field);
+        let mut_field = self.fields.get_mut(i);
+        *mut_field.unwrap() = field.clone();
+        if field.is_deleted() {
+            self.undeleted_fields = DataSchema::undeleted_fields(&self.fields);
+        }
     }
 
     pub fn undeleted_fields(fields: &Vec<DataField>) -> Vec<DataField> {
