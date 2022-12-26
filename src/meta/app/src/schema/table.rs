@@ -201,9 +201,9 @@ pub struct TableMeta {
 }
 
 impl TableMeta {
-    pub fn add_column(&mut self, schema: Arc<DataSchema>, field_comments: &Vec<String>) {
+    pub fn add_columns(&mut self, fields: Vec<DataField>, field_comments: &Vec<String>) {
         let mut new_schema = self.schema.as_ref().to_owned();
-        new_schema.add(&schema);
+        new_schema.add_columns(fields);
         self.schema = Arc::new(new_schema);
         field_comments.iter().for_each(|c| {
             self.field_comments.push(c.to_owned());
@@ -211,12 +211,8 @@ impl TableMeta {
     }
 
     pub fn drop_column(&mut self, column: &String) -> Result<()> {
-        let i = self.schema.index_of(column)?;
-        let field = self.schema.field(i);
-        let mut new_field = field.to_owned();
-        new_field.tag_delete();
         let mut new_schema = self.schema.as_ref().to_owned();
-        new_schema.modify_field(i, new_field);
+        new_schema.drop_column(column)?;
         self.schema = Arc::new(new_schema);
         Ok(())
     }

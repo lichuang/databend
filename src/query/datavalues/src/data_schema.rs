@@ -31,10 +31,6 @@ use crate::TypeDeserializerImpl;
 pub struct DataSchema {
     pub(crate) fields: Vec<DataField>,
     pub(crate) metadata: BTreeMap<String, String>,
-
-    // Never serialized.
-    #[serde(skip_serializing)]
-    pub(crate) undeleted_fields: Vec<DataField>,
 }
 
 impl DataSchema {
@@ -42,54 +38,46 @@ impl DataSchema {
         Self {
             fields: vec![],
             metadata: BTreeMap::new(),
-            undeleted_fields: vec![],
         }
     }
 
     pub fn new(fields: Vec<DataField>) -> Self {
-        let undeleted_fields = DataSchema::undeleted_fields(&fields);
         Self {
             fields,
             metadata: BTreeMap::new(),
-            undeleted_fields,
         }
     }
 
     pub fn new_from(fields: Vec<DataField>, metadata: BTreeMap<String, String>) -> Self {
-        let undeleted_fields = DataSchema::undeleted_fields(&fields);
-        Self {
-            fields,
-            metadata,
-            undeleted_fields,
-        }
+        Self { fields, metadata }
     }
 
     pub fn modify_field(&mut self, i: usize, field: DataField) {
         assert!(i < self.fields.len());
         let mut_field = self.fields.get_mut(i);
         *mut_field.unwrap() = field.clone();
-        if field.is_deleted() {
-            self.undeleted_fields = DataSchema::undeleted_fields(&self.fields);
-        }
     }
 
-    pub fn undeleted_fields(fields: &Vec<DataField>) -> Vec<DataField> {
-        fields
-            .into_iter()
-            .filter(|f| !f.is_deleted())
-            .cloned()
-            .collect()
-    }
-
-    /// Returns an immutable reference of the vector of undeleted `Field` instances.
+    /// Returns an immutable reference of the vector of `Field` instances.
     #[inline]
     pub fn fields(&self) -> &Vec<DataField> {
-        &&self.undeleted_fields
+        &&self.fields
     }
 
     #[inline]
     pub fn num_fields(&self) -> usize {
         self.fields.len()
+    }
+
+    #[inline]
+    pub fn num_of_undeleted_fields(&self) -> usize {
+        let mut cnt = 0;
+        self.fields.iter().for_each(|f| {
+            if !f.is_deleted() {
+                cnt += 1;
+            }
+        });
+        cnt
     }
 
     #[inline]
@@ -244,15 +232,15 @@ impl DataSchema {
         deserializers
     }
 
-    pub fn add(&mut self, other: &DataSchema) {
-        other
-            .fields
-            .iter()
-            .for_each(|e| self.fields.push(e.to_owned()));
-        other.metadata.iter().for_each(|(k, v)| {
-            self.metadata.insert(k.to_owned(), v.to_owned());
-        });
-        self.undeleted_fields = DataSchema::undeleted_fields(&self.fields);
+    pub fn add_columns(&mut self, fields: Vec<DataField>) {
+        fields.into_iter().for_each(|f| self.fields.push(f));
+    }
+
+    pub fn drop_column(&mut self, column: &String) -> Result<()> {
+        let i = self.index_of(&column)?;
+        let field = &mut self.fields[i];
+        field.tag_delete();
+        Ok(())
     }
 }
 

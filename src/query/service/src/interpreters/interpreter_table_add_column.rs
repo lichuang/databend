@@ -14,7 +14,6 @@
 
 use std::sync::Arc;
 
-use common_datavalues::DataSchemaRefExt;
 use common_exception::ErrorCode;
 use common_exception::Result;
 use common_meta_app::schema::UpdateTableMetaReq;
@@ -87,8 +86,7 @@ impl Interpreter for AddTableColumnInterpreter {
                 field.tag_add();
                 fields.push(field)
             }
-            let schema = DataSchemaRefExt::create(fields);
-            new_table_meta.add_column(schema, &self.plan.field_comments);
+            new_table_meta.add_columns(fields, &self.plan.field_comments);
 
             let table_id = table_info.ident.table_id;
             let table_version = table_info.ident.seq;
