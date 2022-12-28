@@ -15,6 +15,7 @@
 use core::fmt;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::usize;
 
 use common_arrow::arrow::datatypes::Schema as ArrowSchema;
 use common_arrow::arrow::datatypes::SchemaRef as ArrowSchemaRef;
@@ -31,6 +32,13 @@ use crate::TypeDeserializerImpl;
 pub struct DataSchema {
     pub(crate) fields: Vec<DataField>,
     pub(crate) metadata: BTreeMap<String, String>,
+
+    // Never serialized.
+    #[serde(skip_serializing)]
+    pub(crate) all_fields: Vec<(Option<usize>, DataField)>,
+
+    #[serde(skip_serializing)]
+    pub(crate) column_id_of_index: Vec<usize>,
 }
 
 impl DataSchema {
@@ -38,46 +46,110 @@ impl DataSchema {
         Self {
             fields: vec![],
             metadata: BTreeMap::new(),
+            all_fields: vec![],
+            column_id_of_index: vec![],
         }
     }
 
+    fn build_all_fields(
+        fields: Vec<DataField>,
+    ) -> (Vec<DataField>, Vec<(Option<usize>, DataField)>, Vec<usize>) {
+        let mut all_fields = Vec::with_capacity(fields.len());
+        let mut undeleted_fields = vec![];
+        let mut column_id_of_index = vec![];
+        fields.into_iter().for_each(|f| {
+            if f.is_deleted() {
+                all_fields.push((None, f));
+            } else {
+                undeleted_fields.push(f.clone());
+                all_fields.push((Some(undeleted_fields.len() - 1), f));
+                column_id_of_index.push(all_fields.len() - 1);
+            }
+        });
+
+        (undeleted_fields, all_fields, column_id_of_index)
+    }
+
     pub fn new(fields: Vec<DataField>) -> Self {
+        let (fields, all_fields, column_id_of_index) = DataSchema::build_all_fields(fields);
         Self {
             fields,
             metadata: BTreeMap::new(),
+            all_fields,
+            column_id_of_index,
         }
     }
 
     pub fn new_from(fields: Vec<DataField>, metadata: BTreeMap<String, String>) -> Self {
-        Self { fields, metadata }
+        let (fields, all_fields, column_id_of_index) = DataSchema::build_all_fields(fields);
+        Self {
+            fields,
+            metadata,
+            all_fields,
+            column_id_of_index,
+        }
     }
 
-    pub fn modify_field(&mut self, i: usize, field: DataField) {
-        assert!(i < self.fields.len());
-        let mut_field = self.fields.get_mut(i);
-        *mut_field.unwrap() = field.clone();
+    pub fn new_from_project(&self, projection: &[usize]) -> Self {
+        // first clone and reset all the index to None
+        let mut all_fields = self.all_fields.clone();
+        for fields in all_fields.iter_mut() {
+            fields.0 = None;
+        }
+
+        // re-calculate column of index
+        let mut fields = Vec::with_capacity(projection.len());
+        let mut column_id_of_index = Vec::with_capacity(projection.len());
+        for i in projection {
+            fields.push(all_fields[*i].1.clone());
+            all_fields[*i].0 = Some(fields.len() - 1);
+            column_id_of_index.push(*i);
+        }
+
+        Self {
+            fields,
+            metadata: self.metadata.clone(),
+            all_fields,
+            column_id_of_index,
+        }
+    }
+
+    fn delete_field(&mut self, idx: usize) {
+        // mark field i has been deleted and move all the fields after i forward.
+        for i in idx..self.fields.len() {
+            let field = &self.fields[i];
+            for all_field in self.all_fields.iter_mut() {
+                if all_field.0 == Some(i) {
+                    if field.is_deleted() {
+                        all_field.0 = None;
+                        all_field.1.tag_delete();
+                    } else {
+                        // move all the fields after idx forward
+                        all_field.0 = Some(i - 1);
+                    }
+                }
+            }
+        }
+
+        // remove from fields array
+        self.fields.remove(idx);
+        self.column_id_of_index.remove(idx);
+    }
+
+    #[inline]
+    pub fn all_fields(&self) -> &Vec<(Option<usize>, DataField)> {
+        &self.all_fields
     }
 
     /// Returns an immutable reference of the vector of `Field` instances.
     #[inline]
     pub fn fields(&self) -> &Vec<DataField> {
-        &&self.fields
+        &self.fields
     }
 
     #[inline]
     pub fn num_fields(&self) -> usize {
         self.fields.len()
-    }
-
-    #[inline]
-    pub fn num_of_undeleted_fields(&self) -> usize {
-        let mut cnt = 0;
-        self.fields.iter().for_each(|f| {
-            if !f.is_deleted() {
-                cnt += 1;
-            }
-        });
-        cnt
     }
 
     #[inline]
@@ -126,6 +198,16 @@ impl DataSchema {
         )))
     }
 
+    /// Find the column id with the given name.
+    pub fn column_id_of(&self, name: &str) -> Result<usize> {
+        let i = self.index_of(name)?;
+        Ok(self.column_id_of_index[i])
+    }
+
+    pub fn column_id_of_index(&self, i: usize) -> usize {
+        self.column_id_of_index[i]
+    }
+
     /// Look up a column by name and return a immutable reference to the column along with
     /// its index.
     pub fn column_with_name(&self, name: &str) -> Option<(usize, &DataField)> {
@@ -152,11 +234,7 @@ impl DataSchema {
     /// project will do column pruning.
     #[must_use]
     pub fn project(&self, projection: &[usize]) -> Self {
-        let fields = projection
-            .iter()
-            .map(|idx| self.fields()[*idx].clone())
-            .collect();
-        Self::new_from(fields, self.meta().clone())
+        self.new_from_project(projection)
     }
 
     /// project with inner columns by path.
@@ -164,16 +242,25 @@ impl DataSchema {
         let paths: Vec<Vec<usize>> = path_indices.values().cloned().collect();
         let fields = paths
             .iter()
-            .map(|path| Self::traverse_paths(&self.fields(), path).unwrap())
+            .map(|path| Self::traverse_paths(&self.fields(), path, Some(&self.all_fields)).unwrap())
             .collect();
         Self::new_from(fields, self.meta().clone())
     }
 
-    fn traverse_paths(fields: &[DataField], path: &[usize]) -> Result<DataField> {
+    fn traverse_paths(
+        fields: &[DataField],
+        path: &[usize],
+        all_fields: Option<&Vec<(Option<usize>, DataField)>>,
+    ) -> Result<DataField> {
         if path.is_empty() {
             return Err(ErrorCode::BadArguments("path should not be empty"));
         }
-        let field = &fields[path[0]];
+        // project need to convert from column id to field array index
+        let idx = match all_fields {
+            Some(all_fields) => all_fields[path[0]].0.unwrap(),
+            None => path[0],
+        };
+        let field = &fields[idx];
         if path.len() == 1 {
             return Ok(field.clone());
         }
@@ -198,7 +285,7 @@ impl DataSchema {
                     DataField::new(&inner_name.clone(), inner_type.clone())
                 })
                 .collect::<Vec<DataField>>();
-            return Self::traverse_paths(&inner_fields, &path[1..]);
+            return Self::traverse_paths(&inner_fields, &path[1..], None);
         }
         let valid_fields: Vec<String> = fields.iter().map(|f| f.name().clone()).collect();
         Err(ErrorCode::BadArguments(format!(
@@ -233,13 +320,19 @@ impl DataSchema {
     }
 
     pub fn add_columns(&mut self, fields: Vec<DataField>) {
-        fields.into_iter().for_each(|f| self.fields.push(f));
+        fields.into_iter().for_each(|f| {
+            assert!(f.is_added());
+            self.fields.push(f.clone());
+            self.all_fields.push((Some(self.fields.len() - 1), f));
+            self.column_id_of_index.push(self.all_fields.len() - 1);
+        });
     }
 
-    pub fn drop_column(&mut self, column: &String) -> Result<()> {
-        let i = self.index_of(&column)?;
+    pub fn drop_column(&mut self, column: &str) -> Result<()> {
+        let i = self.index_of(column)?;
         let field = &mut self.fields[i];
         field.tag_delete();
+        self.delete_field(i);
         Ok(())
     }
 }
@@ -282,12 +375,22 @@ impl From<ArrowSchemaRef> for DataSchema {
 impl fmt::Display for DataSchema {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(
-            &self
-                .fields
-                .iter()
-                .map(|c| c.to_string())
-                .collect::<Vec<String>>()
-                .join(", "),
+            format!(
+                "fields:{:?}, all_fields:{:?}",
+                &self
+                    .fields
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                &self
+                    .all_fields
+                    .iter()
+                    .map(|c| format!("(i:{:?}, field:{:?})", c.0, c.1))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            )
+            .as_str(),
         )
     }
 }

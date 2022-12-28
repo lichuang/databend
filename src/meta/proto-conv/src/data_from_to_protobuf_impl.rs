@@ -45,8 +45,9 @@ impl FromToProto for dv::DataSchema {
     }
 
     fn to_pb(&self) -> Result<pb::DataSchema, Incompatible> {
-        let mut fs = Vec::with_capacity(self.fields().len());
-        for f in self.fields().iter() {
+        let mut fs = Vec::with_capacity(self.all_fields().len());
+        for f in self.all_fields().iter() {
+            let (_, f) = f;
             fs.push(f.to_pb()?);
         }
 
