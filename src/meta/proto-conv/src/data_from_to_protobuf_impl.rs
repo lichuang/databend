@@ -40,15 +40,17 @@ impl FromToProto for dv::DataSchema {
             fs.push(dv::DataField::from_pb(f)?);
         }
 
-        let v = Self::new_from(fs, p.metadata);
+        let v = Self::new_with_deleted(fs, p.metadata, Some(p.deleted));
         Ok(v)
     }
 
     fn to_pb(&self) -> Result<pb::DataSchema, Incompatible> {
-        let mut fs = Vec::with_capacity(self.all_fields().len());
-        for f in self.all_fields().iter() {
-            let (_, f) = f;
+        let mut fs = Vec::with_capacity(self.columns().len());
+        let mut deleted = Vec::with_capacity(self.columns().len());
+        for f in self.columns().iter() {
+            let (i, f) = f;
             fs.push(f.to_pb()?);
+            deleted.push(!i.is_some());
         }
 
         let p = pb::DataSchema {
@@ -56,6 +58,7 @@ impl FromToProto for dv::DataSchema {
             min_compatible: MIN_COMPATIBLE_VER,
             fields: fs,
             metadata: self.meta().clone(),
+            deleted,
         };
         Ok(p)
     }
@@ -66,15 +69,11 @@ impl FromToProto for dv::DataField {
     fn from_pb(p: pb::DataField) -> Result<Self, Incompatible> {
         check_ver(p.ver, p.min_compatible)?;
 
-        let v = dv::DataField::new_with_tag(
+        let v = dv::DataField::new(
             &p.name,
             dv::DataTypeImpl::from_pb(p.data_type.ok_or_else(|| Incompatible {
                 reason: "DataField.data_type can not be None".to_string(),
             })?)?,
-            match p.tag {
-                None => dv::DataFieldTag::Create,
-                Some(tag) => dv::DataFieldTag::from_pb(tag)?,
-            },
         )
         .with_default_expr(p.default_expr);
         Ok(v)
@@ -87,43 +86,6 @@ impl FromToProto for dv::DataField {
             name: self.name().clone(),
             default_expr: self.default_expr().cloned(),
             data_type: Some(self.data_type().to_pb()?),
-            tag: Some(self.tag().to_pb()?),
-        };
-        Ok(p)
-    }
-}
-
-impl FromToProto for dv::DataFieldTag {
-    type PB = pb::DataFieldTag;
-    fn from_pb(p: pb::DataFieldTag) -> Result<Self, Incompatible> {
-        check_ver(p.ver, p.min_compatible)?;
-
-        let tag = match p.tag {
-            None => {
-                return Ok(dv::DataFieldTag::Create);
-            }
-            Some(x) => x,
-        };
-
-        let v = match tag {
-            pb::data_field_tag::Tag::Create(_) => dv::DataFieldTag::Create,
-            pb::data_field_tag::Tag::Add(_) => dv::DataFieldTag::Add,
-            pb::data_field_tag::Tag::Delete(_) => dv::DataFieldTag::Delete,
-        };
-
-        Ok(v)
-    }
-
-    fn to_pb(&self) -> Result<pb::DataFieldTag, Incompatible> {
-        let tag = match self {
-            dv::DataFieldTag::Create => pb::data_field_tag::Tag::Create(pb::Empty {}),
-            dv::DataFieldTag::Add => pb::data_field_tag::Tag::Add(pb::Empty {}),
-            dv::DataFieldTag::Delete => pb::data_field_tag::Tag::Delete(pb::Empty {}),
-        };
-        let p = pb::DataFieldTag {
-            ver: VER,
-            min_compatible: MIN_COMPATIBLE_VER,
-            tag: Some(tag),
         };
         Ok(p)
     }

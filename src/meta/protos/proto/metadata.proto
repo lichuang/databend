@@ -28,17 +28,9 @@ message DataSchema {
 
   // Other optional table info
   map<string, string> metadata = 2;
-}
 
-message DataFieldTag {
-  uint64 ver = 100;
-  uint64 min_compatible = 101;
-
-  oneof tag {
-    Empty create = 1;
-    Empty add = 2;
-    Empty delete = 3;
-  }
+  // Mark if fields has been deleted
+  repeated bool deleted = 3;
 }
 
 // One field, AKA column
@@ -55,6 +47,4 @@ message DataField {
 
   // Column data type
   DataType data_type = 3;
-
-  optional DataFieldTag tag = 4;
 }

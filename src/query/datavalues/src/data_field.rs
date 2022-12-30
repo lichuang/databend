@@ -21,20 +21,12 @@ use crate::types::data_type::DataTypeImpl;
 use crate::wrap_nullable;
 use crate::TypeID;
 
-#[derive(serde::Serialize, serde::Deserialize, Eq, PartialEq, Clone, Debug)]
-pub enum DataFieldTag {
-    Create,
-    Add,
-    Delete,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Eq, PartialEq, Clone)]
 pub struct DataField {
     name: String,
     /// default_expr is serialized representation from PlanExpression
     default_expr: Option<String>,
     data_type: DataTypeImpl,
-    tag: DataFieldTag,
 }
 
 impl DataField {
@@ -43,7 +35,6 @@ impl DataField {
             name: name.to_string(),
             default_expr: None,
             data_type,
-            tag: DataFieldTag::Create,
         }
     }
 
@@ -53,29 +44,15 @@ impl DataField {
             name: name.to_string(),
             default_expr: None,
             data_type,
-            tag: DataFieldTag::Create,
         }
     }
 
-    pub fn new_with_tag(name: &str, data_type: DataTypeImpl, tag: DataFieldTag) -> Self {
+    pub fn new_with_tag(name: &str, data_type: DataTypeImpl) -> Self {
         DataField {
             name: name.to_string(),
             default_expr: None,
             data_type,
-            tag,
         }
-    }
-
-    pub fn tag_delete(&mut self) {
-        self.tag = DataFieldTag::Delete;
-    }
-
-    pub fn tag_add(&mut self) {
-        self.tag = DataFieldTag::Add;
-    }
-
-    pub fn is_deleted(&self) -> bool {
-        self.tag == DataFieldTag::Delete
     }
 
     #[must_use]
@@ -86,10 +63,6 @@ impl DataField {
 
     pub fn name(&self) -> &String {
         &self.name
-    }
-
-    pub fn tag(&self) -> &DataFieldTag {
-        &self.tag
     }
 
     pub fn data_type(&self) -> &DataTypeImpl {
@@ -164,7 +137,6 @@ impl std::fmt::Debug for DataField {
         debug_struct
             .field("name", &self.name)
             .field("data_type", &remove_nullable.data_type_id())
-            .field("tag", &self.tag)
             .field("nullable", &self.is_nullable());
         if let Some(ref default_expr) = self.default_expr {
             debug_struct.field("default_expr", default_expr);
