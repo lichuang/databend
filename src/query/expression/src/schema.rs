@@ -14,6 +14,7 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use common_arrow::arrow::bitmap::Bitmap;
@@ -71,6 +72,11 @@ pub struct DataField {
 pub struct TableSchema {
     pub(crate) fields: Vec<TableField>,
     pub(crate) metadata: BTreeMap<String, String>,
+    pub(crate) max_column_id: u32,
+
+    // map column id to fields index
+    #[serde(skip_serializing)]
+    pub(crate) index_of_column_id: HashMap<u32, u32>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -78,6 +84,7 @@ pub struct TableField {
     name: String,
     default_expr: Option<String>,
     data_type: TableDataType,
+    column_id: Option<u32>,
 }
 
 /// DataType with more information that is only available for table field, e.g, the
@@ -277,18 +284,81 @@ impl TableSchema {
         Self {
             fields: vec![],
             metadata: BTreeMap::new(),
+            max_column_id: 0,
+            index_of_column_id: HashMap::new(),
         }
     }
 
+    fn build_members_from_fields(
+        fields: Vec<TableField>,
+        max_id: Option<u32>,
+    ) -> (u32, HashMap<u32, u32>, Vec<TableField>) {
+        let mut max_column_id = 0;
+        let mut index_of_column_id = HashMap::new();
+        let mut mut_fields = Vec::with_capacity(fields.len());
+        fields.into_iter().enumerate().for_each(|(i, f)| {
+            let (column_id, field) = match f.column_id {
+                Some(column_id) => (column_id, f),
+                None => {
+                    let i = i as u32;
+                    let mut field = f;
+                    field.column_id = Some(i);
+                    (i, field)
+                }
+            };
+            mut_fields.push(field);
+            if column_id > max_column_id {
+                max_column_id = column_id;
+            }
+            index_of_column_id.insert(column_id, i as u32);
+        });
+        (
+            max_id.unwrap_or(max_column_id),
+            index_of_column_id,
+            mut_fields,
+        )
+    }
+
     pub fn new(fields: Vec<TableField>) -> Self {
+        let (max_column_id, index_of_column_id, fields) =
+            Self::build_members_from_fields(fields, None);
         Self {
             fields,
             metadata: BTreeMap::new(),
+            max_column_id,
+            index_of_column_id,
         }
     }
 
     pub fn new_from(fields: Vec<TableField>, metadata: BTreeMap<String, String>) -> Self {
-        Self { fields, metadata }
+        let (max_column_id, index_of_column_id, fields) =
+            Self::build_members_from_fields(fields, None);
+        Self {
+            fields,
+            metadata,
+            max_column_id,
+            index_of_column_id,
+        }
+    }
+
+    pub fn new_from_with_max_column_id(
+        fields: Vec<TableField>,
+        metadata: BTreeMap<String, String>,
+        max_column_id: u32,
+    ) -> Self {
+        let (max_column_id, index_of_column_id, fields) =
+            Self::build_members_from_fields(fields, Some(max_column_id));
+        Self {
+            fields,
+            metadata,
+            max_column_id,
+            index_of_column_id,
+        }
+    }
+
+    #[inline]
+    pub const fn max_column_id(&self) -> u32 {
+        self.max_column_id
     }
 
     /// Returns an immutable reference of the vector of `Field` instances.
@@ -332,6 +402,16 @@ impl TableSchema {
     #[inline]
     pub const fn meta(&self) -> &BTreeMap<String, String> {
         &self.metadata
+    }
+
+    /// Find the column id with the given name.
+    pub fn column_id_of(&self, name: &str) -> Result<u32> {
+        let i = self.index_of(name)?;
+        Ok(self.fields[i].column_id().unwrap())
+    }
+
+    pub fn column_id_of_index(&self, i: usize) -> u32 {
+        self.fields[i].column_id().unwrap()
     }
 
     /// Find the index of the column with the given name.
@@ -464,6 +544,25 @@ impl TableSchema {
         }
         deserializers
     }
+
+    pub fn add_column(&mut self, field: &TableField) {
+        let mut field = field.clone();
+        field.column_id = Some(self.max_column_id);
+        self.index_of_column_id
+            .insert(self.max_column_id, self.fields.len() as u32);
+        self.fields.push(field);
+        self.max_column_id += 1;
+    }
+
+    pub fn drop_column(&mut self, column: &str) -> Result<()> {
+        let i = self.index_of(column)?;
+        let field = &self.fields[i];
+        if let Some(column_id) = field.column_id() {
+            self.index_of_column_id.remove(&column_id);
+        }
+        self.fields.remove(i);
+        Ok(())
+    }
 }
 
 impl DataField {
@@ -518,6 +617,16 @@ impl TableField {
             name: name.to_string(),
             default_expr: None,
             data_type,
+            column_id: None,
+        }
+    }
+
+    pub fn new_with_column_id(name: &str, data_type: TableDataType, column_id: u32) -> Self {
+        TableField {
+            name: name.to_string(),
+            default_expr: None,
+            data_type,
+            column_id: Some(column_id),
         }
     }
 
@@ -525,6 +634,10 @@ impl TableField {
     pub fn with_default_expr(mut self, default_expr: Option<String>) -> Self {
         self.default_expr = default_expr;
         self
+    }
+
+    pub fn column_id(&self) -> Option<u32> {
+        self.column_id
     }
 
     pub fn name(&self) -> &String {
@@ -837,6 +950,7 @@ impl From<&ArrowField> for TableField {
             name: f.name.clone(),
             data_type: f.into(),
             default_expr: None,
+            column_id: None,
         }
     }
 }

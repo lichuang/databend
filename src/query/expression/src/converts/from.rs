@@ -79,7 +79,7 @@ pub fn from_schema(schema: &common_datavalues::DataSchema) -> TableSchema {
             TableField::new(f.name(), ty).with_default_expr(f.default_expr().cloned())
         })
         .collect();
-    TableSchema::new_from(fields, schema.meta().clone())
+    TableSchema::new_from_with_max_column_id(fields, schema.meta().clone(), schema.max_column_id())
 }
 
 pub fn from_scalar(datavalue: &DataValue, datatype: &DataTypeImpl) -> Scalar {

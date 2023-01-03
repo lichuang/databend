@@ -31,6 +31,7 @@ use crate::TypeDeserializerImpl;
 pub struct DataSchema {
     pub(crate) fields: Vec<DataField>,
     pub(crate) metadata: BTreeMap<String, String>,
+    pub(crate) max_column_id: u32,
 }
 
 impl DataSchema {
@@ -38,18 +39,55 @@ impl DataSchema {
         Self {
             fields: vec![],
             metadata: BTreeMap::new(),
+            max_column_id: 0,
         }
     }
 
+    fn max_id_from_fields(fields: &[DataField]) -> u32 {
+        let mut max_column_id = 0;
+        fields.iter().for_each(|f| {
+            if let Some(column_id) = f.column_id() {
+                if column_id > max_column_id {
+                    max_column_id = column_id
+                }
+            }
+        });
+        max_column_id
+    }
+
     pub fn new(fields: Vec<DataField>) -> Self {
+        let max_column_id = Self::max_id_from_fields(&fields);
         Self {
             fields,
             metadata: BTreeMap::new(),
+            max_column_id,
         }
     }
 
     pub fn new_from(fields: Vec<DataField>, metadata: BTreeMap<String, String>) -> Self {
-        Self { fields, metadata }
+        let max_column_id = Self::max_id_from_fields(&fields);
+        Self {
+            fields,
+            metadata,
+            max_column_id,
+        }
+    }
+
+    pub fn new_from_with_max_column_id(
+        fields: Vec<DataField>,
+        metadata: BTreeMap<String, String>,
+        max_column_id: u32,
+    ) -> Self {
+        Self {
+            fields,
+            metadata,
+            max_column_id,
+        }
+    }
+
+    #[inline]
+    pub const fn max_column_id(&self) -> u32 {
+        self.max_column_id
     }
 
     /// Returns an immutable reference of the vector of `Field` instances.
