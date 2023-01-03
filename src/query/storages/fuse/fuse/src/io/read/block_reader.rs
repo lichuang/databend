@@ -56,6 +56,7 @@ pub struct BlockReader {
     projected_schema: DataSchemaRef,
     column_leaves: ColumnLeaves,
     parquet_schema_descriptor: SchemaDescriptor,
+    column_id_of_fields: Vec<usize>,
 }
 
 impl BlockReader {
@@ -70,6 +71,11 @@ impl BlockReader {
                 DataSchemaRef::new(schema.inner_project(path_indices))
             }
         };
+        let column_id_of_fields = projected_schema
+            .fields()
+            .into_iter()
+            .map(|f| schema.column_id_of(f.name()).unwrap())
+            .collect();
 
         let arrow_schema = schema.to_arrow();
         let parquet_schema_descriptor = to_parquet_schema(&arrow_schema)?;
@@ -81,6 +87,7 @@ impl BlockReader {
             projected_schema,
             parquet_schema_descriptor,
             column_leaves,
+            column_id_of_fields,
         }))
     }
 
@@ -155,21 +162,23 @@ impl BlockReader {
         let columns = self.projection.project_column_leaves(&self.column_leaves)?;
         let indices = Self::build_projection_indices(&columns);
         for index in indices {
-            let column_meta = &meta.col_metas[&(index as u32)];
-            let column_reader = self.operator.object(&meta.location.0);
-            let fut = async move {
-                let column_chunk = column_reader
-                    .range_read(column_meta.offset..column_meta.offset + column_meta.len)
-                    .await?;
-                Ok::<_, ErrorCode>((index, column_chunk))
-            }
-            .instrument(debug_span!("read_col_chunk"));
-            column_chunk_futs.push(fut);
+            let column_id = self.column_id_of_fields[index];
+            if let Some(column_meta) = meta.col_metas.get(&(column_id as u32)) {
+                let column_reader = self.operator.object(&meta.location.0);
+                let fut = async move {
+                    let column_chunk = column_reader
+                        .range_read(column_meta.offset..column_meta.offset + column_meta.len)
+                        .await?;
+                    Ok::<_, ErrorCode>((index, column_chunk))
+                }
+                .instrument(debug_span!("read_col_chunk"));
+                column_chunk_futs.push(fut);
 
-            columns_meta.insert(
-                index,
-                ColumnMeta::create(column_meta.offset, column_meta.len, column_meta.num_values),
-            );
+                columns_meta.insert(
+                    column_id,
+                    ColumnMeta::create(column_meta.offset, column_meta.len, column_meta.num_values),
+                );
+            }
         }
 
         let num_cols = columns_meta.len();
@@ -192,7 +201,8 @@ impl BlockReader {
             for index in indices {
                 // Handle the case that: Partition only has one column, but alter table has add other column,
                 // so there may be chance that part.columns_meta dose not has index column.
-                if let Some(column_meta) = columns_meta.get(index) {
+                let column_id = self.column_id_of_fields[*index];
+                if let Some(column_meta) = columns_meta.get(&column_id) {
                     column_in_block_meta = true;
                     let cnt = cnt_map.get_mut(index).unwrap();
                     *cnt -= 1;
@@ -241,16 +251,22 @@ impl BlockReader {
         let columns = self.projection.project_column_leaves(&self.column_leaves)?;
         let indices = Self::build_projection_indices(&columns);
         for index in indices {
-            let column_meta = &part.columns_meta[&index];
-            let column_reader = self.operator.object(&part.location);
-            let fut = async move {
-                let (idx, column_chunk) =
-                    Self::read_column(column_reader, index, column_meta.offset, column_meta.length)
-                        .await?;
-                Ok::<_, ErrorCode>((idx, column_chunk))
+            let column_id = self.column_id_of_fields[index];
+            if let Some(column_meta) = part.columns_meta.get(&column_id) {
+                let column_reader = self.operator.object(&part.location);
+                let fut = async move {
+                    let (idx, column_chunk) = Self::read_column(
+                        column_reader,
+                        index,
+                        column_meta.offset,
+                        column_meta.length,
+                    )
+                    .await?;
+                    Ok::<_, ErrorCode>((idx, column_chunk))
+                }
+                .instrument(debug_span!("read_col_chunk"));
+                column_chunk_futs.push(fut);
             }
-            .instrument(debug_span!("read_col_chunk"));
-            column_chunk_futs.push(fut);
         }
 
         let num_cols = column_chunk_futs.len();
@@ -271,7 +287,8 @@ impl BlockReader {
             let mut column_descriptors = Vec::with_capacity(indices.len());
             let mut column_in_block_meta = false;
             for index in indices {
-                if let Some(column_meta) = part.columns_meta.get(index) {
+                let column_id = self.column_id_of_fields[*index];
+                if let Some(column_meta) = part.columns_meta.get(&column_id) {
                     column_in_block_meta = true;
                     let cnt = cnt_map.get_mut(index).unwrap();
                     *cnt -= 1;
@@ -326,10 +343,19 @@ impl BlockReader {
             let mut column_chunks = Vec::with_capacity(indices.len());
             let mut column_descriptors = Vec::with_capacity(indices.len());
             let mut column_in_block_meta = false;
+
+            println!(
+                "de field: {:?}, index:{:?}, col id: {:?}, part: {:?}",
+                self.projected_schema.field(i),
+                indices,
+                self.column_id_of_fields,
+                part.columns_meta.keys(),
+            );
             for index in indices {
                 // Handle the case that: Partition only has one column, but alter table has add other column,
                 // so there may be chance that part.columns_meta dose not has index column.
-                if let Some(column_meta) = part.columns_meta.get(index) {
+                let column_id = self.column_id_of_fields[*index];
+                if let Some(column_meta) = part.columns_meta.get(&column_id) {
                     column_in_block_meta = true;
                     let cnt = cnt_map.get_mut(index).unwrap();
                     *cnt -= 1;
@@ -373,13 +399,15 @@ impl BlockReader {
         let mut join_handlers = Vec::with_capacity(indices.len());
 
         for index in indices {
-            let column_meta = &part.columns_meta[&index];
-            join_handlers.push(Self::read_column(
-                self.operator.object(&part.location),
-                index,
-                column_meta.offset,
-                column_meta.length,
-            ));
+            let column_id = self.column_id_of_fields[index];
+            if let Some(column_meta) = part.columns_meta.get(&column_id) {
+                join_handlers.push(Self::read_column(
+                    self.operator.object(&part.location),
+                    index,
+                    column_meta.offset,
+                    column_meta.length,
+                ));
+            }
         }
 
         futures::future::try_join_all(join_handlers).await
@@ -399,7 +427,8 @@ impl BlockReader {
         for index in indices {
             // Handle the case that: Partition only has one column, but alter table has add other column,
             // so there may be chance that part.columns_meta dose not has index column.
-            if let Some(column_meta) = part.columns_meta.get(&index) {
+            let column_id = self.column_id_of_fields[index];
+            if let Some(column_meta) = part.columns_meta.get(&column_id) {
                 let op = self.operator.clone();
 
                 let location = part.location.clone();

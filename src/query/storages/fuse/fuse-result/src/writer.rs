@@ -117,8 +117,14 @@ impl ResultTableWriter {
                 )
             })
             .await?;
-        self.accumulator
-            .add_block(size, meta_data, block_statistics, None, 0)?;
+        self.accumulator.add_block(
+            size,
+            meta_data,
+            block_statistics,
+            None,
+            0,
+            schema.get_column_id_of_index(),
+        )?;
         Ok(self.get_last_part_info())
     }
 

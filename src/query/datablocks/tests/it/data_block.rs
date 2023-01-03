@@ -96,8 +96,7 @@ fn test_data_block_or_field_convert() -> Result<()> {
         None,
         Some(DataField::new("c3", DateType::new_impl())),
     ];
-    let new_block: DataBlock =
-        DataBlock::from_chunk_or_field(&schema, &chunk, values.clone(), 3).unwrap();
+    let new_block: DataBlock = DataBlock::from_chunk_or_field(&schema, &chunk, &values, 3).unwrap();
     assert_eq!(3, new_block.num_rows());
     assert_eq!(6, new_block.num_columns());
 

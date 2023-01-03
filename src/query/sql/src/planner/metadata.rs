@@ -144,9 +144,6 @@ impl Metadata {
         self.tables.push(table_entry);
         let mut fields = VecDeque::new();
         for (i, field) in table_meta.schema().fields().iter().enumerate() {
-            if field.is_deleted() {
-                continue;
-            }
             fields.push_back((vec![i], field.clone()));
         }
 

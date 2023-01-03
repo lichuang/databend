@@ -65,8 +65,9 @@ impl<'a> BlockWriter<'a> {
         let (bloom_filter_index_size, bloom_filter_index_location) = self
             .build_block_index(data_accessor, &block, block_id)
             .await?;
+        let column_id_of_index = block.schema().get_column_id_of_index().clone();
         let (file_size, file_meta_data) = write_block(block, data_accessor, &location.0).await?;
-        let col_metas = util::column_metas(&file_meta_data)?;
+        let col_metas = util::column_metas(&file_meta_data, &column_id_of_index)?;
         let block_meta = BlockMeta::new(
             row_count,
             block_size,

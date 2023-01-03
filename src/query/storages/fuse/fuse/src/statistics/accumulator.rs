@@ -57,8 +57,9 @@ impl StatisticsAccumulator {
         block_statistics: BlockStatistics,
         bloom_filter_index_location: Option<Location>,
         bloom_filter_index_size: u64,
+        column_id_index: &Vec<usize>,
     ) -> Result<()> {
-        let col_metas = column_metas(&file_meta)?;
+        let col_metas = column_metas(&file_meta, column_id_index)?;
         self.add(
             file_size,
             col_metas,

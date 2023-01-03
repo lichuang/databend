@@ -25,6 +25,7 @@ use common_datablocks::serialize_data_blocks;
 use common_datablocks::serialize_data_blocks_with_compression;
 use common_datablocks::BlockCompactThresholds;
 use common_datablocks::DataBlock;
+use common_datavalues::DataSchemaRef;
 use common_exception::ErrorCode;
 use common_exception::Result;
 use common_pipeline_core::processors::port::OutputPort;
@@ -88,6 +89,7 @@ enum State {
         meta_data: Box<ThriftFileMetaData>,
         block_statistics: BlockStatistics,
         bloom_index_state: BloomIndexState,
+        schema: DataSchemaRef,
     },
     GenerateSegment,
     SerializedSegment {
@@ -209,6 +211,7 @@ impl Processor for FuseTableSink {
                 // we need a configuration of block size threshold here
                 let mut data = Vec::with_capacity(100 * 1024 * 1024);
                 let schema = block.schema().clone();
+                println!("fuse_sink schema: {:?}", schema);
                 let (size, meta_data) = serialize_data_blocks(vec![block], &schema, &mut data)?;
 
                 self.state = State::Serialized {
@@ -217,6 +220,7 @@ impl Processor for FuseTableSink {
                     block_statistics,
                     meta_data: Box::new(meta_data),
                     bloom_index_state,
+                    schema,
                 };
             }
             State::GenerateSegment => {
@@ -266,6 +270,7 @@ impl Processor for FuseTableSink {
                 meta_data,
                 block_statistics,
                 bloom_index_state,
+                schema,
             } => {
                 // write data block
                 io::write_data(
@@ -290,6 +295,7 @@ impl Processor for FuseTableSink {
                     block_statistics,
                     Some(bloom_index_state.location),
                     bloom_filter_index_size,
+                    schema.get_column_id_of_index(),
                 )?;
 
                 if self.accumulator.summary_block_count >= self.num_block_threshold {

@@ -20,7 +20,10 @@ use common_exception::Result;
 use common_storages_table_meta::meta::ColumnId;
 use common_storages_table_meta::meta::ColumnMeta;
 
-pub fn column_metas(file_meta: &ThriftFileMetaData) -> Result<HashMap<ColumnId, ColumnMeta>> {
+pub fn column_metas(
+    file_meta: &ThriftFileMetaData,
+    column_id_index: &Vec<usize>,
+) -> Result<HashMap<ColumnId, ColumnMeta>> {
     // currently we use one group only
     let num_row_groups = file_meta.row_groups.len();
     if num_row_groups != 1 {
@@ -50,7 +53,8 @@ pub fn column_metas(file_meta: &ThriftFileMetaData) -> Result<HashMap<ColumnId, 
                     len: col_len as u64,
                     num_values,
                 };
-                col_metas.insert(idx as u32, res);
+                let column_id = column_id_index[idx];
+                col_metas.insert(column_id as u32, res);
             }
             None => {
                 return Err(ErrorCode::ParquetFileInvalid(format!(

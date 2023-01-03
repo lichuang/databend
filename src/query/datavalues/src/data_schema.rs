@@ -188,6 +188,14 @@ impl DataSchema {
         self.column_id_of_index[i]
     }
 
+    pub fn get_column_id_of_index(&self) -> &Vec<usize> {
+        &self.column_id_of_index
+    }
+
+    pub fn is_column_deleted(&self, col_id: usize) -> bool {
+        self.columns[col_id].0.is_none()
+    }
+
     /// Look up a column by name and return a immutable reference to the column along with
     /// its index.
     pub fn column_with_name(&self, name: &str) -> Option<(usize, &DataField)> {

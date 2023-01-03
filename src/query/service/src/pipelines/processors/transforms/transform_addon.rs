@@ -104,6 +104,9 @@ impl Transform for TransformAddOn {
 
             block = block.add_column(column, f.clone())?;
         }
-        block.resort(self.output_schema.clone())
+        println!("before: {:?}", block.schema());
+        let a = block.resort(self.output_schema.clone())?;
+        println!("after: {:?}", a.schema());
+        Ok(a)
     }
 }

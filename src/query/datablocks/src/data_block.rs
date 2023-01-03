@@ -36,6 +36,7 @@ pub struct DataBlock {
 impl DataBlock {
     #[inline]
     pub fn create(schema: DataSchemaRef, columns: Vec<ColumnRef>) -> Self {
+        println!("schema 1: {:?}", schema);
         debug_assert!(
             schema.fields().iter().zip(columns.iter()).all(|(f, c)| f
                 .data_type()
@@ -61,6 +62,7 @@ impl DataBlock {
         columns: Vec<ColumnRef>,
         meta: Option<BlockMetaInfoPtr>,
     ) -> Self {
+        println!("schema 2: {:?}", schema);
         debug_assert!(
             schema.fields().iter().zip(columns.iter()).all(|(f, c)| f
                 .data_type()
@@ -91,6 +93,7 @@ impl DataBlock {
 
     #[inline]
     pub fn empty_with_schema(schema: DataSchemaRef) -> Self {
+        println!("schema 3: {:?}", schema);
         let mut columns = vec![];
         for f in schema.fields().iter() {
             let col = f.data_type().create_column(&[]).unwrap();
@@ -241,6 +244,7 @@ impl DataBlock {
 
     #[inline]
     pub fn resort(self, schema: DataSchemaRef) -> Result<Self> {
+        println!("resort from {:?} to {:?}", self.schema, schema);
         let mut columns = Vec::with_capacity(self.num_columns());
         for f in schema.fields() {
             let column = self.try_column_by_name(f.name())?;
@@ -292,8 +296,8 @@ impl DataBlock {
         Ok(DataBlock::create(schema.clone(), columns))
     }
 
-    // values contain all the data field that want to return in DataBlock in two cases:
-    // 1. if values[i].is_some(), then DataBlock.column[i] = num_rows * DataField.default_value()
+    // data_fields contain all the data field that want to return in DataBlock in two cases:
+    // 1. if data_fields[i].is_some(), then DataBlock.column[i] = num_rows * DataField.default_value()
     // 2. else, DataBlock.column[i] = chuck.columns[i]
     pub fn from_chunk_or_field<A: AsRef<dyn Array>>(
         schema: &DataSchemaRef,

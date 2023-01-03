@@ -285,17 +285,19 @@ impl FuseTable {
 
         println!("all_columns_part schema: {:?}, meta: {:?}", schema, meta);
 
-        for (idx, column_meta) in &meta.col_metas {
+        for column_id in meta.col_metas.keys() {
             // ignore all deleted field
-            let field = schema.field(*idx as usize);
-            if field.is_deleted() {
+            if schema.is_column_deleted(*column_id as usize) {
                 continue;
             }
 
-            columns_meta.insert(
-                *idx as usize,
-                ColumnMeta::create(column_meta.offset, column_meta.len, column_meta.num_values),
-            );
+            // ignore column this block dose not exist
+            if let Some(column_meta) = meta.col_metas.get(&column_id) {
+                columns_meta.insert(
+                    *column_id as usize,
+                    ColumnMeta::create(column_meta.offset, column_meta.len, column_meta.num_values),
+                );
+            }
         }
 
         let rows_count = meta.row_count;
@@ -318,20 +320,19 @@ impl FuseTable {
     ) -> PartInfoPtr {
         let mut columns_meta = HashMap::with_capacity(projection.len());
 
-        println!("projection_part schema: {:?}, meta: {:?}", schema, meta);
-
         let columns = projection.project_column_leaves(column_leaves).unwrap();
         for column in &columns {
             let indices = &column.leaf_ids;
             for index in indices {
-                if let Some(column_meta) = meta.col_metas.get(&(*index as u32)) {
-                    // ignore all deleted field
-                    let field = schema.field(*index);
-                    if field.is_deleted() {
-                        continue;
-                    }
+                // ignore all deleted field
+                let column_id = schema.column_id_of_index(*index as usize);
+                if schema.is_column_deleted(column_id) {
+                    continue;
+                }
+                // ignore column this block dose not exist
+                if let Some(column_meta) = meta.col_metas.get(&(column_id as u32)) {
                     columns_meta.insert(
-                        *index,
+                        column_id,
                         ColumnMeta::create(
                             column_meta.offset,
                             column_meta.len,
@@ -341,6 +342,13 @@ impl FuseTable {
                 }
             }
         }
+
+        println!(
+            "projection_part schema: {:?}, meta: {:?}, block meta:{:?}",
+            schema,
+            columns_meta.keys(),
+            meta.col_metas.keys(),
+        );
 
         let rows_count = meta.row_count;
         let location = meta.location.0.clone();

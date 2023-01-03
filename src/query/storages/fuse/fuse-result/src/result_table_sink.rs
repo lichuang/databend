@@ -191,6 +191,7 @@ impl Processor for ResultTableSink {
                     block_statistics,
                     bloom_index_location,
                     bloom_index_size,
+                    schema.get_column_id_of_index(),
                 )?;
 
                 self.state = State::Serialized {

@@ -244,9 +244,10 @@ impl Processor for CompactTransform {
                     // serialize data block.
                     let mut block_data = Vec::with_capacity(100 * 1024 * 1024);
                     let schema = new_block.schema().clone();
+                    let column_id_of_index = new_block.schema().get_column_id_of_index().clone();
                     let (file_size, meta_data) =
                         serialize_data_blocks(vec![new_block], &schema, &mut block_data)?;
-                    let col_metas = util::column_metas(&meta_data)?;
+                    let col_metas = util::column_metas(&meta_data, &column_id_of_index)?;
 
                     // new block meta.
                     let new_meta = BlockMeta::new(
