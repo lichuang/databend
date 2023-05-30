@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeMap;
+
+use common_expression::FieldIndex;
+use common_expression::RemoteExpr;
 use common_expression::TableSchemaRef;
 
 use crate::plan::datasource::datasource_info::DataSourceInfo;
@@ -21,7 +25,8 @@ use crate::plan::PushDownInfo;
 use crate::table_args::TableArgs;
 
 // TODO: Delete the scan plan field, but it depends on plan_parser:L394
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+//#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct DataSourcePlan {
     // TODO catalog id is better
     pub catalog: String,
@@ -36,6 +41,8 @@ pub struct DataSourcePlan {
     pub tbl_args: Option<TableArgs>,
     pub push_downs: Option<PushDownInfo>,
     pub query_internal_columns: bool,
+
+    pub data_mask_policy: Option<BTreeMap<FieldIndex, RemoteExpr>>,
 }
 
 impl DataSourcePlan {

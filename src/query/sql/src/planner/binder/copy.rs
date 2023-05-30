@@ -347,6 +347,7 @@ impl<'a> Binder {
                 tbl_args: None,
                 push_downs: None,
                 query_internal_columns: false,
+                data_mask_policy: None,
             };
 
             Ok(Plan::Copy(Box::new(CopyPlan::IntoTable {

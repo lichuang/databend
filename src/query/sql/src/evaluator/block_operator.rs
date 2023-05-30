@@ -55,6 +55,9 @@ pub enum BlockOperator {
 
     /// Expand the input [`DataBlock`] with set-returning functions.
     FlatMap { srf_exprs: Vec<Expr> },
+
+    /// Replace the input [`DataBlock`] with set-returning functions.
+    Replace { exprs: Vec<Option<Expr>> },
 }
 
 impl BlockOperator {
@@ -68,6 +71,7 @@ impl BlockOperator {
                         data_type: expr.data_type().clone(),
                         value: result,
                     };
+                    println!("col: {:?}, expr: {:?}", col, expr);
                     input.add_column(col);
                 }
                 Ok(input)
@@ -216,6 +220,29 @@ impl BlockOperator {
                 let result = DataBlock::concat(&result_data_blocks)?;
                 Ok(result)
             }
+            BlockOperator::Replace { exprs } => {
+                debug_assert!(exprs.len() == input.num_columns());
+                let mut columns = Vec::with_capacity(input.num_columns());
+                for (i, column) in input.columns().iter().enumerate() {
+                    match &exprs[i] {
+                        None => columns.push(column.clone()),
+                        Some(expr) => {
+                            let evaluator_input =
+                                DataBlock::new(vec![column.clone()], input.num_rows());
+                            let evaluator =
+                                Evaluator::new(&evaluator_input, func_ctx, &BUILTIN_FUNCTIONS);
+                            let result = evaluator.run(expr)?;
+                            let col = BlockEntry {
+                                data_type: expr.data_type().clone(),
+                                value: result,
+                            };
+                            columns.push(col);
+                        }
+                    }
+                }
+                let output = DataBlock::new_with_meta(columns, input.num_rows(), input.take_meta());
+                Ok(output)
+            }
         }
     }
 }
@@ -285,6 +312,7 @@ impl Transform for CompoundBlockOperator {
                         BlockOperator::Filter { .. } => "Filter",
                         BlockOperator::Project { .. } => "Project",
                         BlockOperator::FlatMap { .. } => "FlatMap",
+                        BlockOperator::Replace { .. } => "Replace",
                     }
                     .to_string()
                 })

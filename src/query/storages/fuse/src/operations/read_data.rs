@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeMap;
+use std::println;
 use std::sync::Arc;
 
 use common_base::runtime::Runtime;
@@ -21,13 +23,19 @@ use common_catalog::plan::PushDownInfo;
 use common_catalog::table_context::TableContext;
 use common_exception::ErrorCode;
 use common_exception::Result;
+use common_expression::RemoteExpr;
+use common_functions::BUILTIN_FUNCTIONS;
+use common_pipeline_core::processors::processor::ProcessorPtr;
 use common_pipeline_core::Pipeline;
+use common_sql::evaluator::BlockOperator;
+use common_sql::evaluator::CompoundBlockOperator;
 use storages_common_index::Index;
 use storages_common_index::RangeIndex;
 
 use crate::fuse_lazy_part::FuseLazyPartInfo;
 use crate::io::BlockReader;
 use crate::operations::fuse_source::build_fuse_source_pipeline;
+use crate::operations::read::data_source_mask_transformer::DataSourceMaskTransformer;
 use crate::pruning::SegmentLocation;
 use crate::FuseTable;
 
@@ -141,13 +149,73 @@ impl FuseTable {
         });
 
         build_fuse_source_pipeline(
-            ctx,
+            ctx.clone(),
             pipeline,
             self.storage_format,
             block_reader,
             plan,
             topk,
             max_io_requests,
-        )
+        )?;
+
+        if let Some(data_mask_policy) = &plan.data_mask_policy {
+            // let tr = DataSourceMaskTransformer::create(data_mask_policy);
+            // pipeline.add_transform(|transform_input, transform_output| {
+            // NativeDeserializeDataTransform::create(
+            // ctx.clone(),
+            // block_reader.clone(),
+            // plan,
+            // topk.clone(),
+            // transform_input,
+            // transform_output,
+            // )
+            // })?;
+            let num_input_columns = plan.schema().num_fields();
+            let mut exprs = Vec::with_capacity(num_input_columns);
+            for i in 0..num_input_columns {
+                let expr = if let Some(remote_expr) = data_mask_policy.get(&i) {
+                    Some(remote_expr.as_expr(&BUILTIN_FUNCTIONS))
+                } else {
+                    None
+                };
+
+                exprs.push(expr);
+            }
+            /*
+            let exprs = data_mask_policy
+                .iter()
+                .map(|(idx, remote_expr)| {
+                    let expr = if let RemoteExpr::ColumnRef { id, .. } = remote_expr {
+                        if (*idx != *id) {
+                            Some(remote_expr.as_expr(&BUILTIN_FUNCTIONS))
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(remote_expr.as_expr(&BUILTIN_FUNCTIONS))
+                    };
+                    expr
+                })
+                .collect::<Vec<_>>();
+            */
+            println!("expr: {:?}", exprs);
+            let op = BlockOperator::Replace { exprs };
+
+            let query_ctx = ctx.clone();
+            let func_ctx = query_ctx.get_function_context()?;
+
+            pipeline.add_transform(|input, output| {
+                let transform = CompoundBlockOperator::create(
+                    input,
+                    output,
+                    num_input_columns,
+                    func_ctx.clone(),
+                    vec![op.clone()],
+                );
+                Ok(ProcessorPtr::create(transform))
+            })?;
+        }
+
+        Ok(())
     }
 }

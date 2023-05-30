@@ -1180,6 +1180,7 @@ pub fn statement(i: Input) -> IResult<StatementMsg> {
             CREATE ~ MASKING ~ POLICY ~ ( IF ~ NOT ~ EXISTS )? ~ #ident ~ #data_mask_policy
         },
         |(_, _, _, opt_if_not_exists, name, policy)| {
+            println!("policy: {:?}", policy);
             let stmt = CreateDatamaskPolicyStmt {
                 if_not_exists: opt_if_not_exists.is_some(),
                 name: name.to_string(),
@@ -1733,6 +1734,15 @@ pub fn alter_table_action(i: Input) -> IResult<AlterTableAction> {
         },
         |(_, _, column)| AlterTableAction::AddColumn { column },
     );
+    let modify_column = map(
+        rule! {
+            MODIFY ~ COLUMN ~ #ident ~ SET ~ MASKING ~ POLICY ~ #ident
+        },
+        |(_, _, column, _, _, _, mask_name)| AlterTableAction::ModifyColumn {
+            column,
+            action: ModifyColumnAction::SetMaskingPolicy(mask_name.to_string()),
+        },
+    );
     let drop_column = map(
         rule! {
             DROP ~ COLUMN ~ #ident
@@ -1773,6 +1783,7 @@ pub fn alter_table_action(i: Input) -> IResult<AlterTableAction> {
     rule!(
         #rename_table
         | #add_column
+        | #modify_column
         | #drop_column
         | #alter_table_cluster_key
         | #drop_table_cluster_key

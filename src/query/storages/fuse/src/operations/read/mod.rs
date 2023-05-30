@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod data_source_mask_transformer;
 mod fuse_rows_fetcher;
 pub mod fuse_source;
 mod native_data_source;

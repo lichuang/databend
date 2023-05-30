@@ -221,6 +221,7 @@ impl FromToProto for mt::TableMeta {
                 .transpose()?
                 .unwrap_or_default(),
             shared_by: BTreeSet::from_iter(p.shared_by.into_iter()),
+            column_mask_policy: p.column_mask_policy,
         };
         Ok(v)
     }
@@ -256,6 +257,7 @@ impl FromToProto for mt::TableMeta {
             field_comments: self.field_comments.clone(),
             statistics: Some(self.statistics.to_pb()?),
             shared_by: Vec::from_iter(self.shared_by.clone().into_iter()),
+            column_mask_policy: self.column_mask_policy.clone(),
         };
         Ok(p)
     }
