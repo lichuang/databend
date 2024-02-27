@@ -63,6 +63,7 @@ use databend_storages_common_table_meta::meta::TableSnapshot;
 use databend_storages_common_table_meta::meta::TableSnapshotStatistics;
 use databend_storages_common_table_meta::meta::Versioned;
 use databend_storages_common_table_meta::table::table_storage_prefix;
+use databend_storages_common_table_meta::table::ChangeType;
 use databend_storages_common_table_meta::table::TableCompression;
 use databend_storages_common_table_meta::table::OPT_KEY_BLOOM_INDEX_COLUMNS;
 use databend_storages_common_table_meta::table::OPT_KEY_CHANGE_TRACKING;
@@ -308,10 +309,11 @@ impl FuseTable {
                 if let Some(loc) = &snapshot.table_statistics_location {
                     let reader = MetaReaders::table_snapshot_statistics_reader(self.get_operator());
 
+                    let ver = TableMetaLocationGenerator::table_statistics_version(loc);
                     let load_params = LoadParams {
                         location: loc.clone(),
                         len_hint: None,
-                        ver: TableMetaLocationGenerator::snapshot_statistics_version(),
+                        ver,
                         put_cache: true,
                     };
 
@@ -721,6 +723,7 @@ impl Table for FuseTable {
     async fn table_statistics(
         &self,
         ctx: Arc<dyn TableContext>,
+        _change_type: Option<ChangeType>,
     ) -> Result<Option<TableStatistics>> {
         let stats = match self.table_type {
             FuseTableType::AttachedReadOnly => {
@@ -752,7 +755,7 @@ impl Table for FuseTable {
                 };
 
                 if let Some(since) = &self.since_table {
-                    if let Some(since_stats) = since.table_statistics(ctx).await? {
+                    if let Some(since_stats) = since.table_statistics(ctx, None).await? {
                         res = res.increment_since_from(&since_stats);
                     }
                 }
