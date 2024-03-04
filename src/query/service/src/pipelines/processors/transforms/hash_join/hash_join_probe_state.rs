@@ -134,6 +134,11 @@ impl HashJoinProbeState {
             })
             .collect::<Vec<_>>();
         let method = DataBlock::choose_hash_method_with_types(&hash_key_types, false)?;
+        println!("HashJoinProbeState probe_schema: {:?}\n", probe_schema);
+        println!(
+            "HashJoinProbeState probe_projections: {:?}\n",
+            probe_projections
+        );
         Ok(HashJoinProbeState {
             ctx,
             func_ctx,

@@ -335,8 +335,16 @@ impl PipelineBuilder {
         } = merge_into_source;
 
         self.build_pipeline(input)?;
-        self.main_pipeline
-            .try_resize(self.ctx.get_settings().get_max_threads()? as usize)?;
+        if false {
+            self.main_pipeline
+                .try_resize(self.ctx.get_settings().get_max_threads()? as usize)?;
+        } else {
+            println!(
+                "max_threads: {:?}\n",
+                self.ctx.get_settings().get_max_threads()?
+            );
+            self.main_pipeline.try_resize(1)?;
+        }
         // 1. if matchedOnly, we will use inner join
         // 2. if insert Only, we will use right anti join
         // 3. other cases, we use right outer join
@@ -385,6 +393,7 @@ impl PipelineBuilder {
     // build merge into pipeline.
     // the block rows is limitd by join (65536 rows), but we don't promise the block size.
     pub(crate) fn build_merge_into(&mut self, merge_into: &MergeInto) -> Result<()> {
+        println!("merge_into: {:?}\n", merge_into);
         let MergeInto {
             input,
             table_info,
@@ -401,7 +410,11 @@ impl PipelineBuilder {
             ..
         } = merge_into;
 
+        println!("before pipelines: {:?}\n", self.main_pipeline.pipes);
+
         self.build_pipeline(input)?;
+
+        println!("after input: {:?}\n", self.main_pipeline.pipes);
 
         let tbl = self
             .ctx
@@ -468,6 +481,11 @@ impl PipelineBuilder {
             MergeIntoType::MatechedOnly => (1, true, false),
         };
 
+        println!(
+            "step: {:?}, need_match: {:?}, need_unmatch: {:?}\n",
+            step, need_match, need_unmatch
+        );
+
         for _ in (0..self.main_pipeline.output_len()).step_by(step) {
             if need_match {
                 let matched_split_processor = MatchedSplitProcessor::create(
@@ -521,12 +539,16 @@ impl PipelineBuilder {
                 };
             }
         }
+
+        println!("before matched: {:?}\n", self.main_pipeline.pipes);
+
         self.main_pipeline.add_pipe(Pipe::create(
             self.main_pipeline.output_len(),
             get_output_len(&pipe_items),
             pipe_items.clone(),
         ));
 
+        println!("after matched: {:?}\n", self.main_pipeline.pipes);
         // the complete pipeline(with matched and unmatched) below:
         // row_id port0_1
         // matched update data port0_2
@@ -569,9 +591,12 @@ impl PipelineBuilder {
                     rules.push(idx);
                     rules.push(idx + self.main_pipeline.output_len() / 2);
                 }
+                println!("before reorder_inputs: {:?}\n", self.main_pipeline.pipes);
                 self.main_pipeline.reorder_inputs(rules);
+                println!("after reorder_inputs: {:?}\n", self.main_pipeline.pipes);
                 // resize row_id
                 self.resize_row_id(2)?;
+                println!("after resize_row_id: {:?}\n", self.main_pipeline.pipes);
             }
         } else {
             // I. if change_join_order is false, it means source is build side.
@@ -694,8 +719,12 @@ impl PipelineBuilder {
             builder.finalize()
         };
 
+        println!("before add_builder_pipe: {:?}\n", self.main_pipeline.pipes);
+
         self.main_pipeline
             .add_pipe(add_builder_pipe(builder, distributed));
+
+        println!("after add_builder_pipe: {:?}\n", self.main_pipeline.pipes);
         // fill computed columns
         let table_computed_schema = &table.schema().remove_virtual_computed_fields();
         let default_schema: DataSchemaRef = Arc::new(table_default_schema.into());
@@ -803,12 +832,17 @@ impl PipelineBuilder {
             pipe_items.push(create_dummy_item());
         }
 
+        println!("pipe_items: {:?}\n", pipe_items);
+
+        println!("before add_pipe: {:?}\n", self.main_pipeline.pipes);
+
         self.main_pipeline.add_pipe(Pipe::create(
             self.main_pipeline.output_len(),
             get_output_len(&pipe_items),
             pipe_items,
         ));
 
+        println!("after add_pipe: {:?}\n", self.main_pipeline.pipes);
         // complete pipeline(if change_join_order is true, there is no row_number_port):
         // resize block ports
         // aggregate_mutator port/dummy_item port               aggregate_mutator port/ dummy_item (this depends on apply_row_id)
@@ -839,7 +873,13 @@ impl PipelineBuilder {
             ranges.push(vec![self.main_pipeline.output_len() - 1]);
         }
 
+        println!(
+            "before resize_partial_one: {:?}\n",
+            self.main_pipeline.pipes
+        );
         self.main_pipeline.resize_partial_one(ranges)?;
+
+        println!("after resize_partial_one: {:?}\n", self.main_pipeline.pipes);
 
         let pipe_items = if !distributed {
             let mut vec = Vec::with_capacity(2);
@@ -892,6 +932,8 @@ impl PipelineBuilder {
             pipe_items,
         ));
 
+        println!("after add_pipe 11: {:?}\n", self.main_pipeline.pipes);
+
         // accumulate row_number
         if *distributed && need_unmatch && !*change_join_order {
             let pipe_items = if need_match {
@@ -922,6 +964,8 @@ impl PipelineBuilder {
                     ))
                 })?;
         }
+
+        println!("pipelines: {:?}\n", self.main_pipeline.pipes);
         Ok(())
     }
 }

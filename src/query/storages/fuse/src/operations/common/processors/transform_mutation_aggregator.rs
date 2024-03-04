@@ -144,6 +144,7 @@ impl TableMutationAggregator {
     }
 
     pub fn accumulate_log_entry(&mut self, log_entry: MutationLogEntry) {
+        println!("log_entry: {:?}\n", log_entry);
         match log_entry {
             MutationLogEntry::ReplacedBlock { index, block_meta } => {
                 self.abort_operation.add_block(&block_meta);

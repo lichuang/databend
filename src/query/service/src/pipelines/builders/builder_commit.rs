@@ -71,7 +71,7 @@ impl PipelineBuilder {
         } else {
             None
         };
-        self.main_pipeline.add_sink(|input| {
+        let ret = self.main_pipeline.add_sink(|input| {
             CommitSink::try_create(
                 table,
                 self.ctx.clone(),
@@ -84,6 +84,13 @@ impl PipelineBuilder {
                 None,
                 plan.deduplicated_label.clone(),
             )
-        })
+        });
+
+        println!(
+            "after commit sink pipelines: {:?}\n",
+            self.main_pipeline.pipes
+        );
+
+        ret
     }
 }

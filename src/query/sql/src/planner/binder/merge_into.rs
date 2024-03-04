@@ -89,9 +89,11 @@ impl Binder {
             .get_enable_experimental_merge_into()
             .unwrap_or_default()
         {
-            return Err(ErrorCode::Unimplemented(
-                "merge into is experimental for now, you can use 'set enable_experimental_merge_into = 1' to set it up",
-            ));
+            if false {
+                return Err(ErrorCode::Unimplemented(
+                    "merge into is experimental for now, you can use 'set enable_experimental_merge_into = 1' to set it up",
+                ));
+            }
         };
 
         let (matched_clauses, unmatched_clauses) = stmt.split_clauses();
@@ -134,6 +136,7 @@ impl Binder {
                 .await?;
         }
 
+        println!("plan: {:?}\n", plan);
         Ok(Plan::MergeInto(Box::new(plan)))
     }
 
@@ -335,6 +338,7 @@ impl Binder {
             // use source as build table
             right: Box::new(source_data.clone()),
         };
+        println!("join: {:?}\n", join);
 
         let (join_sexpr, mut bind_ctx) = self
             .bind_join(
@@ -352,6 +356,8 @@ impl Binder {
             let join_column_set = join_ctx.clone().column_set();
             columns_set = columns_set.union(&join_column_set).cloned().collect();
         }
+        println!("join_sexpr: {:?}\n", join_sexpr);
+        println!("metadata: {:?}\n", self.metadata.read());
 
         let name_resolution_ctx = self.name_resolution_ctx.clone();
         let mut scalar_binder = ScalarBinder::new(
@@ -384,6 +390,7 @@ impl Binder {
             table_name.clone()
         };
 
+        println!("matched_clauses: {:?}\n", matched_clauses);
         // bind matched clause columns and add update fields and exprs
         for clause in &matched_clauses {
             matched_evaluators.push(
@@ -424,6 +431,8 @@ impl Binder {
             }
         }
         assert!(split_idx != DUMMY_COLUMN_INDEX);
+
+        println!("matched_evaluators: {:?}\n", matched_evaluators);
 
         Ok(MergeInto {
             catalog: catalog_name.to_string(),

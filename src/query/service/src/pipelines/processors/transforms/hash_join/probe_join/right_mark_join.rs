@@ -44,6 +44,7 @@ impl HashJoinProbeState {
     where
         H::Key: 'a,
     {
+        println!("right_mark_join input: {:?}\n", input);
         // Probe states.
         let has_null = *self
             .hash_join_state
@@ -73,6 +74,8 @@ impl HashJoinProbeState {
             }
         }
 
+        println!("marker: {:?}\n", markers);
+
         let probe_block = if probe_state.generation_state.is_probe_projected {
             Some(input.clone())
         } else {
@@ -97,6 +100,7 @@ impl HashJoinProbeState {
     where
         H::Key: 'a,
     {
+        println!("right_mark_join_with_conjunct input: {:?}\n", input);
         let has_null = *self
             .hash_join_state
             .hash_join_desc
@@ -242,11 +246,14 @@ impl HashJoinProbeState {
         };
         let marker_block = Some(self.create_marker_block(has_null, markers, input.num_rows())?);
 
-        Ok(vec![self.merge_eq_block(
-            probe_block,
-            marker_block,
-            input.num_rows(),
-        )])
+        println!("marker_block: {:?}\n", marker_block);
+        println!("probe_block: {:?}\n", probe_block);
+
+        let ret = self.merge_eq_block(probe_block, marker_block, input.num_rows());
+
+        println!("ret: {:?}\n", ret);
+
+        Ok(vec![ret])
     }
 
     #[inline]

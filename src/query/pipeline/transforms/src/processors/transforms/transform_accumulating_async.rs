@@ -82,6 +82,7 @@ impl<T: AsyncAccumulatingTransform + 'static> Processor for AsyncAccumulatingTra
         }
 
         if let Some(data_block) = self.output_data.take() {
+            println!("AsyncAccumulatingTransform output_data: {:?}\n", data_block);
             self.output.push_data(Ok(data_block));
             return Ok(Event::NeedConsume);
         }
@@ -112,7 +113,12 @@ impl<T: AsyncAccumulatingTransform + 'static> Processor for AsyncAccumulatingTra
     #[async_backtrace::framed]
     async fn async_process(&mut self) -> Result<()> {
         if let Some(data_block) = self.input_data.take() {
+            println!("AsyncAccumulatingTransform input_data: {:?}\n", data_block);
             self.output_data = self.inner.transform(data_block).await?;
+            println!(
+                "AsyncAccumulatingTransform output_data: {:?}\n",
+                self.output_data
+            );
             return Ok(());
         }
 

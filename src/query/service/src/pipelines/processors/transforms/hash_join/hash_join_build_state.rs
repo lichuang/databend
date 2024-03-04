@@ -183,6 +183,8 @@ impl HashJoinBuildState {
 
     /// Add input `DataBlock` to `hash_join_state.row_space`.
     pub fn build(&self, input: DataBlock) -> Result<()> {
+        println!("HashJoinBuildState input: {:?}\n", input);
+
         let mut buffer = self.hash_join_state.row_space.buffer.write();
 
         let input_rows = input.num_rows();
@@ -685,6 +687,8 @@ impl HashJoinBuildState {
             _ => {}
         };
 
+        println!("build_keys: {:?}\n", build_keys);
+
         for (col, ty) in build_keys.iter_mut() {
             *col = col.remove_nullable();
             *ty = ty.remove_nullable();
@@ -747,6 +751,8 @@ impl HashJoinBuildState {
             info!("finish build hash table with {} rows", build_num_rows);
 
             let data_blocks = &mut build_state.generation_state.chunks;
+
+            println!("HashJoinBuildState build_done: {:?}\n", data_blocks);
 
             if !data_blocks.is_empty()
                 && self.hash_join_state.hash_join_desc.join_type != JoinType::Cross

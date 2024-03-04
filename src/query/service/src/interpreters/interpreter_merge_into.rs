@@ -230,6 +230,8 @@ impl MergeIntoInterpreter {
 
         // find row_id column index
         let join_output_schema = join_input.output_schema()?;
+        println!("join_output_schema: {:?}\n", join_input.output_schema()?);
+        println!("join_input: {:?}\n", join_input);
 
         let insert_only = matches!(merge_type, MergeIntoType::InsertOnly);
 
@@ -318,6 +320,7 @@ impl MergeIntoInterpreter {
                 merge_into_split_idx: merge_into_split_idx as u32,
             })
         };
+        println!("merge_into_source: {:?}\n", merge_into_source);
 
         // transform unmatched for insert
         // reference to func `build_eval_scalar`
@@ -436,6 +439,10 @@ impl MergeIntoInterpreter {
             field_index_of_input_schema
                 .insert(*field_index, join_output_schema.index_of(value).unwrap());
         }
+        println!(
+            "field_index_of_input_schema: {:?}\n",
+            field_index_of_input_schema
+        );
 
         let segments: Vec<_> = base_snapshot
             .segments
@@ -443,6 +450,8 @@ impl MergeIntoInterpreter {
             .into_iter()
             .enumerate()
             .collect();
+
+        println!("matched: {:?}\n", matched);
 
         let commit_input = if !distributed {
             // recv datablocks from matched upstream and unmatched upstream
@@ -516,6 +525,8 @@ impl MergeIntoInterpreter {
                 segments,
             }))
         };
+
+        println!("commit_input: {:?}\n", commit_input);
 
         // build mutation_aggregate
         let physical_plan = PhysicalPlan::CommitSink(Box::new(CommitSink {

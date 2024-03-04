@@ -396,6 +396,7 @@ impl Pipeline {
     /// - input 1 -> output 2
     /// - input 2 -> output 0
     pub fn reorder_inputs(&mut self, rule: Vec<usize>) {
+        println!("reorder_inputs: {:?}\n", rule);
         match self.pipes.last() {
             Some(pipe) if pipe.output_length > 1 => {
                 debug_assert!(rule.len() == pipe.output_length);

@@ -98,6 +98,7 @@ impl TransformSerializeBlock {
             fields,
             ..table.schema().as_ref().clone()
         });
+        println!("source_schema: {:?}\n", source_schema);
 
         let bloom_columns_map = table
             .bloom_index_cols
@@ -186,6 +187,7 @@ impl Processor for TransformSerializeBlock {
         }
 
         let mut input_data = self.input.pull_data().unwrap()?;
+        println!("TransformSerializeBlock input: {:?}\n", input_data);
         let meta = input_data.take_meta();
         if let Some(meta) = meta {
             let meta = SerializeDataMeta::downcast_from(meta)
@@ -324,6 +326,7 @@ impl Processor for TransformSerializeBlock {
 
                     DataBlock::empty_with_meta(Box::new(serialized.block_meta))
                 };
+                println!("TransformSerializeBlock output_data: {:?}\n", data_block);
                 self.output_data = Some(data_block);
             }
             _ => return Err(ErrorCode::Internal("It's a bug.")),

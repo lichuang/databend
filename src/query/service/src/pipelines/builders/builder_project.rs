@@ -58,10 +58,13 @@ impl PipelineBuilder {
 
         let mut projections = Vec::with_capacity(result_columns.len());
 
+        println!("result_columns: {:?}\n", result_columns);
+        println!("input_schema: {:?}\n", input_schema);
         for column_binding in result_columns {
             let index = column_binding.index;
             projections.push(input_schema.index_of(index.to_string().as_str())?);
         }
+        println!("projections: {:?}\n", projections);
         let num_input_columns = input_schema.num_fields();
         pipeline.add_transform(|input, output| {
             Ok(ProcessorPtr::create(CompoundBlockOperator::create(

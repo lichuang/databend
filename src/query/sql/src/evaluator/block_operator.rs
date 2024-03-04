@@ -48,6 +48,7 @@ pub enum BlockOperator {
 
 impl BlockOperator {
     pub fn execute(&self, func_ctx: &FunctionContext, mut input: DataBlock) -> Result<DataBlock> {
+        println!("BlockOperator input: {:?}\n", input);
         if input.is_empty() {
             return Ok(input);
         }

@@ -133,6 +133,7 @@ impl MatchedAggregator {
 
     #[async_backtrace::framed]
     pub async fn accumulate(&mut self, data_block: DataBlock) -> Result<()> {
+        println!("accumulate input: {:?}\n", data_block);
         // An optimization: If we use target table as build side, the deduplicate will be done
         // in hashtable probe phase.In this case, We don't support delete for now, so we
         // don't to add MergeStatus here.
@@ -389,7 +390,10 @@ impl AggregationContext {
                 bitmap.push(true);
             }
         }
+        println!("origin_data_block: {:?}\n", origin_data_block);
+        println!("bitmap: {:?}\n", bitmap);
         let res_block = origin_data_block.filter_with_bitmap(&bitmap.into())?;
+        println!("res_block: {:?}\n", res_block);
 
         if res_block.is_empty() {
             metrics_inc_merge_into_deleted_blocks_counter(1);

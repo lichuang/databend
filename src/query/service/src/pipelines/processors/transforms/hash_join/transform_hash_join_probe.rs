@@ -87,6 +87,7 @@ impl TransformHashJoinProbe {
         has_string_column: bool,
     ) -> Result<Box<dyn Processor>> {
         let id = join_probe_state.probe_attach()?;
+        println!("TransformHashJoinProbe projections: {:?}\n", projections);
         Ok(Box::new(TransformHashJoinProbe {
             input_port,
             output_port,
@@ -114,7 +115,9 @@ impl TransformHashJoinProbe {
 
     fn probe(&mut self, block: DataBlock) -> Result<()> {
         self.probe_state.clear();
+        println!("before probe: {:?}\n", block);
         let data_blocks = self.join_probe_state.probe(block, &mut self.probe_state)?;
+        println!("after probe: {:?}\n", data_blocks);
         if !data_blocks.is_empty() {
             self.output_data_blocks.extend(data_blocks);
         }
@@ -165,6 +168,7 @@ impl TransformHashJoinProbe {
                 .pop_front()
                 .unwrap()
                 .project(&self.projections);
+            println!("after project: {:?}\n", data);
             self.output_port.push_data(Ok(data));
             return Ok(Event::NeedConsume);
         }

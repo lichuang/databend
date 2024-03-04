@@ -38,7 +38,9 @@ impl AsyncAccumulatingTransform for MatchedAggregator {
     async fn on_finish(&mut self, _output: bool) -> Result<Option<DataBlock>> {
         // apply mutations
         let mutation_logs = self.apply().await?;
-        Ok(mutation_logs.map(|logs| logs.into()))
+        let data_block = mutation_logs.map(|logs| logs.into());
+        print!("MatchedAggregator output: {:?}\n", data_block);
+        Ok(data_block)
     }
 }
 

@@ -200,8 +200,11 @@ impl MatchedSplitProcessor {
             );
         }
 
+        println!("input_schema: {:?}\n", input_schema);
         if !enable_update_column_only {
             for item in matched.iter() {
+                println!("item.0: {:?}\n", item.0);
+                println!("item.1: {:?}\n", item.1);
                 // delete
                 if item.1.is_none() {
                     let filter = item.0.as_ref().map(|expr| expr.as_expr(&BUILTIN_FUNCTIONS));
@@ -336,11 +339,13 @@ impl Processor for MatchedSplitProcessor {
 
     fn process(&mut self) -> Result<()> {
         if let Some(data_block) = self.input_data.take() {
+            println!("input: {:?}\n", data_block);
             //  we receive a partial unmodified block data meta.
             if data_block.get_meta().is_some() && data_block.is_empty() {
                 assert!(self.target_build_optimization);
                 let meta_index = BlockMetaIndex::downcast_ref_from(data_block.get_meta().unwrap());
                 if meta_index.is_some() {
+                    println!("output_data_row_id_data 1\n");
                     self.output_data_row_id_data.push(data_block);
                     return Ok(());
                 }
@@ -359,10 +364,12 @@ impl Processor for MatchedSplitProcessor {
                 for op in self.ops.iter() {
                     match op {
                         MutationKind::Update(update_mutation) => {
+                            println!("before: {:?}\n", current_block);
                             let stage_block = update_mutation
                                 .update_mutator
                                 .update_by_expr(current_block)?;
                             current_block = stage_block;
+                            println!("after: {:?}\n", current_block);
                         }
 
                         MutationKind::Delete(delete_mutation) => {
@@ -373,6 +380,7 @@ impl Processor for MatchedSplitProcessor {
                             // delete all
                             if !row_ids.is_empty() {
                                 row_ids = row_ids.add_meta(Some(Box::new(RowIdKind::Delete)))?;
+                                println!("output_data_row_id_data 2\n");
                                 self.output_data_row_id_data.push(row_ids);
                             }
 
@@ -384,12 +392,14 @@ impl Processor for MatchedSplitProcessor {
                     }
                 }
 
+                println!("before filter: {:?}\n", current_block);
                 let filter: Value<BooleanType> = current_block
                     .get_by_offset(current_block.num_columns() - 1)
                     .value
                     .try_downcast()
                     .unwrap();
                 current_block = current_block.filter_boolean_value(&filter)?;
+                println!("after filter: {:?}\n", current_block);
             }
 
             if !current_block.is_empty() {
@@ -402,6 +412,8 @@ impl Processor for MatchedSplitProcessor {
 
                 // for target build optimization, there is only one matched clause without condition. we won't read rowid.
                 if !self.target_build_optimization {
+                    println!("output_data_row_id_data 3\n");
+                    println!("current_block: {:?}\n", current_block);
                     self.output_data_row_id_data.push(DataBlock::new_with_meta(
                         vec![current_block.get_by_offset(self.row_id_idx).clone()],
                         current_block.num_rows(),
@@ -412,10 +424,12 @@ impl Processor for MatchedSplitProcessor {
                 let op = BlockOperator::Project {
                     projection: self.update_projections.clone(),
                 };
+                println!("before op: {:?}\n", current_block);
                 current_block = op.execute(&self.ctx.get_function_context()?, current_block)?;
                 metrics_inc_merge_into_append_blocks_counter(1);
                 metrics_inc_merge_into_append_blocks_rows_counter(current_block.num_rows() as u32);
 
+                println!("after op: {:?}\n", current_block);
                 current_block = self.cast_data_type_for_merge(current_block)?;
 
                 // no need to give source schema, the data block's schema is complete, so we won'f fill default
@@ -438,6 +452,11 @@ impl MatchedSplitProcessor {
         // (nullable(b_type),nullable(c_type)), so we will get datatype not match error, let's transform
         // them back here.
         let current_columns = current_block.columns();
+        println!("current_block: {:?}\n", current_block);
+        println!(
+            "target_table_schema fields: {:?}\n",
+            self.target_table_schema.fields
+        );
         assert_eq!(
             self.target_table_schema.fields.len(),
             current_columns.len(),

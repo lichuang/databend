@@ -96,6 +96,8 @@ impl PipelineBuilder {
     }
 
     pub(crate) fn build_join(&mut self, join: &HashJoin) -> Result<()> {
+        println!("\nHashJoin: {:?}\n", join);
+
         // for merge into target table as build side.
         let (merge_into_build_table_index, merge_into_is_distributed) =
             self.merge_into_get_optimization_flag(join);

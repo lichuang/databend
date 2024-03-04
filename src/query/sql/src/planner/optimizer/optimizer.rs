@@ -240,11 +240,16 @@ pub fn optimize_query(opt_ctx: OptimizerContext, mut s_expr: SExpr) -> Result<SE
         )?;
     }
 
+    println!("after 1: {:?}\n", s_expr);
+
     // Pull up and infer filter.
     s_expr = PullUpFilterOptimizer::new(opt_ctx.metadata.clone()).run(&s_expr)?;
 
+    println!("after 2: {:?}\n", s_expr);
     // Run default rewrite rules
     s_expr = RecursiveOptimizer::new(&DEFAULT_REWRITE_RULES, &opt_ctx).run(&s_expr)?;
+
+    println!("after 3: {:?}\n", s_expr);
 
     // Cost based optimization
     let mut dphyp_optimized = false;
@@ -263,6 +268,8 @@ pub fn optimize_query(opt_ctx: OptimizerContext, mut s_expr: SExpr) -> Result<SE
             dphyp_optimized = true;
         }
     }
+
+    println!("after 4: {:?}\n", s_expr);
 
     // Deduplicate join conditions.
     s_expr = DeduplicateJoinConditionOptimizer::new().run(&s_expr)?;

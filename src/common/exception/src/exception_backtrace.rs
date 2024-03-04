@@ -68,9 +68,15 @@ pub fn capture() -> Option<ErrorCodeBacktrace> {
     match enable_rust_backtrace() {
         false => None,
         true => match backtrace_style() {
-            BacktraceStyle::Symbols => Some(ErrorCodeBacktrace::Symbols(Arc::new(
-                backtrace::Backtrace::new(),
-            ))),
+            BacktraceStyle::Symbols => {
+                if true {
+                    None
+                } else {
+                    Some(ErrorCodeBacktrace::Symbols(Arc::new(
+                        backtrace::Backtrace::new(),
+                    )))
+                }
+            }
             // TODO: get offset address(https://github.com/rust-lang/backtrace-rs/issues/434)
             BacktraceStyle::Address => Some(ErrorCodeBacktrace::Address(Arc::new(
                 backtrace::Backtrace::new_unresolved(),

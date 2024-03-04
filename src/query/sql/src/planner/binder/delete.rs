@@ -46,6 +46,9 @@ impl<'a> Binder {
         table_expr: SExpr,
         scalar_binder: &mut ScalarBinder<'_>,
     ) -> Result<(Option<ScalarExpr>, Vec<SubqueryDesc>)> {
+        println!("filter: {:?}\n", filter);
+        println!("table_expr: {:?}\n", table_expr);
+
         Ok(if let Some(expr) = filter {
             let (scalar, _) = scalar_binder.bind(expr).await?;
             let mut subquery_desc = vec![];
@@ -129,6 +132,7 @@ impl Binder {
         subquery_expr: &SubqueryExpr,
         mut table_expr: SExpr,
     ) -> Result<SubqueryDesc> {
+        println!("subquery_expr: {:?}\n", subquery_expr);
         let predicate = if subquery_expr.data_type()
             == DataType::Nullable(Box::new(DataType::Boolean))
         {
@@ -195,9 +199,14 @@ impl Binder {
         // Add row_id column to scan's column set
         scan.columns.insert(row_id_index.unwrap());
         table_expr.plan = Arc::new(Scan(scan));
+        println!("table_expr: {:?}\n", table_expr);
         let filter_expr = SExpr::create_unary(Arc::new(filter.into()), Arc::new(table_expr));
+        println!("before SubqueryRewriter::rewrite: {:?}\n", filter_expr);
         let mut rewriter = SubqueryRewriter::new(self.ctx.clone(), self.metadata.clone());
         let filter_expr = rewriter.rewrite(&filter_expr)?;
+        println!("after SubqueryRewriter::rewrite: {:?}\n", filter_expr);
+        println!("meta: {:?}\n", self.metadata.read());
+        println!("row_id_index: {:?}\n", row_id_index);
 
         Ok(SubqueryDesc {
             input_expr: filter_expr,

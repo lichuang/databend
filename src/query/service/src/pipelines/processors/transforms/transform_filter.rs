@@ -49,6 +49,10 @@ impl TransformFilter {
         func_ctx: FunctionContext,
         max_block_size: usize,
     ) -> Box<dyn Processor> {
+        println!(
+            "filter: {:?}\n projections: {:?}\n",
+            select_expr, projections
+        );
         let filter = FilterExecutor::new(
             select_expr,
             func_ctx,
@@ -58,6 +62,7 @@ impl TransformFilter {
             &BUILTIN_FUNCTIONS,
             false,
         );
+
         BlockingTransformer::create(input, output, TransformFilter {
             projections,
             output_data_blocks: VecDeque::new(),
@@ -71,6 +76,8 @@ impl BlockingTransform for TransformFilter {
     const NAME: &'static str = "TransformFilter";
 
     fn consume(&mut self, input: DataBlock) -> Result<()> {
+        println!("TransformFilter input: {:?}\n", input);
+
         let num_evals = input
             .get_meta()
             .and_then(AggIndexMeta::downcast_ref_from)
@@ -82,8 +89,11 @@ impl BlockingTransform for TransformFilter {
                 .push_back(input.project_with_agg_index(&self.projections, num_evals));
         } else {
             let blocks = input.split_by_rows_no_tail(self.max_block_size);
+            println!("TransformFilter blocks: {:?}\n", blocks);
             for block in blocks.into_iter() {
-                let data_block = self.filter.filter(block)?;
+                // let data_block = self.filter.filter(block)?;
+                let data_block = block;
+                println!("after filter: {:?}\n", data_block);
                 if data_block.num_rows() > 0 {
                     self.output_data_blocks.push_back(data_block);
                 }

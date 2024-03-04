@@ -466,6 +466,7 @@ impl PhysicalPlanBuilder {
             }
         }
         let output_schema = DataSchemaRefExt::create(output_fields);
+        println!("output_schema: {:?}\n", output_schema);
 
         Ok(PhysicalPlan::HashJoin(HashJoin {
             plan_id: self.next_plan_id(),

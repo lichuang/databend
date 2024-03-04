@@ -55,6 +55,7 @@ use crate::IndexType;
 use crate::MetadataRef;
 
 #[allow(clippy::enum_variant_names)]
+#[derive(Debug)]
 pub enum UnnestResult {
     // Semi/Anti Join, Cross join for EXISTS
     SimpleJoin,
@@ -85,15 +86,22 @@ impl SubqueryRewriter {
     pub fn rewrite(&mut self, s_expr: &SExpr) -> Result<SExpr> {
         match s_expr.plan().clone() {
             RelOperator::EvalScalar(mut plan) => {
+                println!("before rewrite EvalScalar: {:?}\n", s_expr);
                 let mut input = self.rewrite(s_expr.child(0)?)?;
 
                 for item in plan.items.iter_mut() {
                     let res = self.try_rewrite_subquery(&item.scalar, &input, false)?;
+                    println!(
+                        "after try_rewrite_subquery res scalar: {:?}, sexpr: {:?}\n",
+                        res.0, res.1
+                    );
                     input = res.1;
                     item.scalar = res.0;
                 }
 
-                Ok(SExpr::create_unary(Arc::new(plan.into()), Arc::new(input)))
+                let new_s_expr = SExpr::create_unary(Arc::new(plan.into()), Arc::new(input));
+                println!("new eval s_expr: {:?}\n", new_s_expr);
+                Ok(new_s_expr)
             }
             RelOperator::Filter(mut plan) => {
                 let mut input = self.rewrite(s_expr.child(0)?)?;
@@ -241,6 +249,10 @@ impl SubqueryRewriter {
                 let mut flatten_info = FlattenInfo {
                     from_count_func: false,
                 };
+                println!(
+                    "prop.outer_columns.is_empty(): {:?}\n",
+                    prop.outer_columns.is_empty()
+                );
                 let (s_expr, result) = if prop.outer_columns.is_empty() {
                     self.try_rewrite_uncorrelated_subquery(s_expr, &subquery)?
                 } else {
@@ -251,6 +263,8 @@ impl SubqueryRewriter {
                         is_conjunctive_predicate,
                     )?
                 };
+
+                println!("after rewrite s_expr: {:?}, result: {:?}\n", s_expr, result);
 
                 // If we unnest the subquery into a simple join, then we can replace the
                 // original predicate with a `TRUE` literal to eliminate the conjunction.
@@ -496,6 +510,7 @@ impl SubqueryRewriter {
             }
             SubqueryType::Any => {
                 let output_column = subquery.output_column.clone();
+                println!("output_column: {:?}\n", output_column);
                 let column_name = format!("subquery_{}", output_column.index);
                 let left_condition = wrap_cast(
                     &ScalarExpr::BoundColumnRef(BoundColumnRef {

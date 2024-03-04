@@ -170,10 +170,12 @@ impl UpdateInterpreter {
             .table_index(table_index)
             .build();
             let mut filters = VecDeque::new();
+            let column_bindings = vec![];
             for subquery_desc in &self.plan.subquery_desc {
                 let filter = subquery_filter(
                     self.ctx.clone(),
                     self.plan.metadata.clone(),
+                    &column_bindings,
                     &row_id_column_binding,
                     subquery_desc,
                 )
