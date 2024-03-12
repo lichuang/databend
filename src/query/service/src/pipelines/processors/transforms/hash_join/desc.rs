@@ -27,11 +27,13 @@ pub const MARKER_KIND_TRUE: u8 = 0;
 pub const MARKER_KIND_FALSE: u8 = 1;
 pub const MARKER_KIND_NULL: u8 = 2;
 
+#[derive(Debug)]
 pub struct MarkJoinDesc {
     // pub(crate) marker_index: Option<IndexType>,
     pub(crate) has_null: RwLock<bool>,
 }
 
+#[derive(Debug)]
 pub struct HashJoinDesc {
     pub(crate) build_keys: Vec<Expr>,
     pub(crate) probe_keys: Vec<Expr>,

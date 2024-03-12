@@ -145,6 +145,7 @@ impl MergeIntoInterpreter {
             can_try_update_column_only,
             ..
         } = &self.plan;
+        println!("MergeInto input: {:?}\n", input);
         let mut columns_set = columns_set.clone();
         let table = self.ctx.get_table(catalog, database, table_name).await?;
         let fuse_table = table.as_any().downcast_ref::<FuseTable>().ok_or_else(|| {
@@ -232,6 +233,10 @@ impl MergeIntoInterpreter {
         let join_output_schema = join_input.output_schema()?;
         println!("join_output_schema: {:?}\n", join_input.output_schema()?);
         println!("join_input: {:?}\n", join_input);
+        println!(
+            "target_build_optimization: {:?}\n",
+            target_build_optimization
+        );
 
         let insert_only = matches!(merge_type, MergeIntoType::InsertOnly);
 

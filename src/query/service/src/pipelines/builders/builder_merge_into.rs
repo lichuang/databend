@@ -354,6 +354,7 @@ impl PipelineBuilder {
         if let MergeIntoType::FullOperation = merge_type {
             let mut items = Vec::with_capacity(self.main_pipeline.output_len());
             let output_len = self.main_pipeline.output_len();
+            println!("FullOperation output_len: {:?}\n", output_len);
             for _ in 0..output_len {
                 let merge_into_split_processor =
                     MergeIntoSplitProcessor::create(*merge_into_split_idx, false)?;

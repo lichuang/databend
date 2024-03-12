@@ -339,7 +339,7 @@ impl Processor for MatchedSplitProcessor {
 
     fn process(&mut self) -> Result<()> {
         if let Some(data_block) = self.input_data.take() {
-            println!("input: {:?}\n", data_block);
+            println!("MatchedSplitProcessor input: {:?}\n", data_block);
             //  we receive a partial unmodified block data meta.
             if data_block.get_meta().is_some() && data_block.is_empty() {
                 assert!(self.target_build_optimization);

@@ -113,6 +113,7 @@ impl Processor for MergeIntoSplitProcessor {
         // 2. process data stage here
         if self.output_port_matched.can_push() {
             if let Some(matched_data) = self.output_data_matched_data.take() {
+                println!("MergeIntoSplitProcessor matched_data: {:?}\n", matched_data);
                 self.output_port_matched.push_data(Ok(matched_data));
                 pushed_something = true
             }
@@ -120,6 +121,10 @@ impl Processor for MergeIntoSplitProcessor {
 
         if self.output_port_not_matched.can_push() {
             if let Some(not_matched_data) = self.output_data_not_matched_data.take() {
+                println!(
+                    "MergeIntoSplitProcessor not_matched_data: {:?}\n",
+                    not_matched_data
+                );
                 self.output_port_not_matched.push_data(Ok(not_matched_data));
                 pushed_something = true
             }
@@ -152,6 +157,7 @@ impl Processor for MergeIntoSplitProcessor {
 
     fn process(&mut self) -> Result<()> {
         if let Some(data_block) = self.input_data.take() {
+            println!("MergeIntoSplitProcessor input_data: {:?}\n", data_block);
             //  we receive a partial unmodified block data. please see details at the top of this file.
             if data_block.get_meta().is_some() {
                 let meta_index = BlockMetaIndex::downcast_ref_from(data_block.get_meta().unwrap());

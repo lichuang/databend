@@ -210,6 +210,7 @@ impl HashJoinProbeState {
         } else {
             Evaluator::new(&input, &probe_state.func_ctx, &BUILTIN_FUNCTIONS)
         };
+        println!("HashJoinDesc: {:?}\n", self.hash_join_state.hash_join_desc);
         let mut probe_keys = self
             .hash_join_state
             .hash_join_desc

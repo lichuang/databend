@@ -34,6 +34,12 @@ impl MergeIntoSplitMutator {
         let split_column = &block.columns()[self.split_idx as usize];
         assert!(matches!(split_column.data_type, DataType::Nullable(_)),);
 
+        println!("split_data_block block: {:?}\n", block);
+        println!(
+            "split_idx: {:?}, split_column: {:?}\n",
+            self.split_idx, split_column
+        );
+
         // get row_id do check duplicate and get filter
         let filter: Bitmap = match &split_column.value {
             databend_common_expression::Value::Scalar(scalar) => {
@@ -55,6 +61,14 @@ impl MergeIntoSplitMutator {
                 }
             },
         };
+        println!(
+            "matched: {:?}\n",
+            block.clone().filter_with_bitmap(&filter)?
+        );
+        println!(
+            "not matched: {:?}\n",
+            block.clone().filter_with_bitmap(&filter.not())?
+        );
         Ok((
             block.clone().filter_with_bitmap(&filter)?,
             block.clone().filter_with_bitmap(&filter.not())?,
