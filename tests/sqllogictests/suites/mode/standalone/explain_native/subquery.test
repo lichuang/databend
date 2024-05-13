@@ -600,20 +600,16 @@ HashJoin
 ├── probe keys: []
 ├── filters: []
 ├── estimated rows: 4.00
-├── Filter(Build)
+├── TableScan(Build)
+│   ├── table: default.default.t
 │   ├── output columns: []
-│   ├── filters: [is_true(t.i (#1) > 10)]
-│   ├── estimated rows: 0.00
-│   └── TableScan
-│       ├── table: default.default.t
-│       ├── output columns: [i (#1)]
-│       ├── read rows: 0
-│       ├── read size: 0
-│       ├── partitions total: 1
-│       ├── partitions scanned: 0
-│       ├── pruning stats: [segments: <range pruning: 1 to 0>]
-│       ├── push downs: [filters: [is_true(t.i (#1) > 10)], limit: NONE]
-│       └── estimated rows: 4.00
+│   ├── read rows: 0
+│   ├── read size: 0
+│   ├── partitions total: 1
+│   ├── partitions scanned: 0
+│   ├── pruning stats: [segments: <range pruning: 1 to 0>]
+│   ├── push downs: [filters: [is_true(t.i (#1) > 10)], limit: NONE]
+│   └── estimated rows: 0.00
 └── TableScan(Probe)
     ├── table: default.default.t
     ├── output columns: [i (#0)]
