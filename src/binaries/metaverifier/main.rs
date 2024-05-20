@@ -37,6 +37,9 @@ use databend_common_tracing::init_logging;
 use databend_common_tracing::FileConfig;
 use databend_common_tracing::StderrConfig;
 use databend_meta::version::METASRV_COMMIT_VERSION;
+use rand::rngs::StdRng;
+use rand::Rng;
+use rand::SeedableRng;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -112,12 +115,15 @@ async fn main() -> Result<()> {
 
     while client_num < config.client {
         client_num += 1;
-        let addr = config.grpc_api_address.clone();
         let prefix = config.prefix;
+        let addrs: Vec<_> = config
+            .grpc_api_address
+            .split(",")
+            .map(|addr| addr.to_string())
+            .collect();
 
         let handle = runtime::spawn(async move {
-            let client =
-                MetaGrpcClient::try_create(vec![addr.to_string()], "root", "xxx", None, None, None);
+            let client = MetaGrpcClient::try_create(addrs.clone(), "root", "xxx", None, None, None);
 
             let client = match client {
                 Ok(client) => client,
@@ -136,6 +142,7 @@ async fn main() -> Result<()> {
             )
             .await
         });
+        println!("verifier worker {} started..", client_num);
         handles.push(handle)
     }
 
@@ -195,7 +202,7 @@ async fn verifier(
     remove_percent: u64,
 ) -> Result<()> {
     let mut kv: HashSet<String> = HashSet::new();
-
+    let mut rng = StdRng::from_entropy();
     let start = Instant::now();
 
     for i in 0..number {
@@ -208,7 +215,8 @@ async fn verifier(
             .upsert_kv(UpsertKVReq::new(&node_key, seq, value, None))
             .await?;
 
-        if i % 100 < remove_percent {
+        let n: u64 = rng.gen_range(0..=100);
+        if n < remove_percent {
             let seq = MatchSeq::Any;
             let value = Operation::Delete;
 
