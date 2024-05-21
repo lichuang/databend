@@ -1,0 +1,21 @@
+kind: NetworkChaos
+apiVersion: chaos-mesh.org/v1alpha1
+metadata:
+  namespace: databend
+  name: meta0-network-delay
+  annotations:
+    experiment.chaos-mesh.org/pause: 'true'
+spec:
+  selector:
+    namespaces:
+      - databend
+    labelSelectors:
+      statefulset.kubernetes.io/pod-name: my-release-databend-meta-0
+  mode: all
+  action: delay
+  delay:
+    latency: 1000ms
+    correlation: '0'
+    jitter: 0ms
+  direction: to
+

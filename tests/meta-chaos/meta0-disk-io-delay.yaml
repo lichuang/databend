@@ -1,0 +1,19 @@
+kind: IOChaos
+apiVersion: chaos-mesh.org/v1alpha1
+metadata:
+  namespace: databend
+  name: meta0-io-delay
+  annotations:
+    experiment.chaos-mesh.org/pause: 'false'
+spec:
+  selector:
+    namespaces:
+      - databend
+    labelSelectors:
+      statefulset.kubernetes.io/pod-name: my-release-databend-meta-2
+  mode: all
+  action: latency
+  delay: 500ms
+  percent: 100
+  volumePath: /data/databend-meta
+

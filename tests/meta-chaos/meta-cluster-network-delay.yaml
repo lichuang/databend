@@ -1,0 +1,18 @@
+kind: NetworkChaos
+apiVersion: chaos-mesh.org/v1alpha1
+metadata:
+  namespace: databend
+  name: meta-cluster-network-delay
+spec:
+  selector:
+    namespaces:
+      - databend
+  mode: all
+  action: delay
+  delay:
+    latency: 500ms
+    correlation: '25'
+    jitter: 100ms
+  direction: to
+
+

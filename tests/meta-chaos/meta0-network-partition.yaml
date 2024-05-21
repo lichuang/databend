@@ -1,0 +1,16 @@
+kind: NetworkChaos
+apiVersion: chaos-mesh.org/v1alpha1
+metadata:
+  namespace: databend
+  name: meta0-network-partition
+spec:
+  selector:
+    namespaces:
+      - databend
+    labelSelectors:
+      statefulset.kubernetes.io/pod-name: my-release-databend-meta-2
+  mode: all
+  action: partition
+  duration: 20s
+  direction: to
+

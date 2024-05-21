@@ -1,0 +1,15 @@
+kind: IOChaos
+apiVersion: chaos-mesh.org/v1alpha1
+metadata:
+  namespace: databend
+  name: meta-cluster-disk-io-delay
+spec:
+  selector:
+    namespaces:
+      - databend
+  mode: all
+  action: latency
+  delay: 100ms
+  percent: 20
+  volumePath: /data/databend-meta
+

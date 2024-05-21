@@ -53,8 +53,8 @@ struct Config {
     #[clap(long, default_value = "10")]
     pub client: u64,
 
-    /// run timeout, default 300s
-    #[clap(long, default_value = "300")]
+    /// run timeout, default 600s
+    #[clap(long, default_value = "600")]
     pub time: u64,
 
     #[clap(long, default_value = "10")]
@@ -164,6 +164,7 @@ async fn main() -> Result<()> {
         for handle in handles {
             let ret = handle.await.unwrap();
             if let Err(e) = ret {
+                println!("test client error: {:?}", e);
                 return Err(e);
             }
         }
