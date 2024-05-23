@@ -8,9 +8,9 @@ def main(argv):
   inputfile = ''
   outputfile = ''
   try:
-    opts, args = getopt.getopt(argv,"h",["prefix=","client=","remove-percent=","number=","grpc-api-address=","from-k8s="])
+    opts, args = getopt.getopt(argv,"h",["path=","prefix=","client=","remove-percent=","number=","grpc-api-address=","from-k8s="])
   except getopt.GetoptError:
-    print ('test.py -i <inputfile> -o <outputfile>')
+    print ('start_from_k8s.py -i <inputfile> -o <outputfile>')
     sys.exit(2)
   
   prefix = ''
@@ -19,12 +19,16 @@ def main(argv):
   remove_percent = '10'
   number = '10000'
   grpc_api_address = ''
-  start_cmd = ["./target/debug/databend-metaverifier"];
+  binary = ""
+  start_cmd = []
   for opt, arg in opts:
     arg = arg.strip()
     if opt == '-h':
       print ('test.py --prefix --client')
       sys.exit()
+    elif opt in ("--path"):
+      if len(arg) > 0:
+        binary = arg
     elif opt in ("--prefix"):
       if len(arg) > 0:
         start_cmd.append("--prefix")
@@ -60,6 +64,10 @@ def main(argv):
         start_cmd.append("--grpc-api-address")
         start_cmd.append(grpc_api_address)
 
+  if len(binary) == 0:
+    print("binary path is empty, use --path option")
+    return
+  start_cmd.insert(0, binary)
   cmd = ' '.join(start_cmd)
 
   print("cmd: ", cmd)
