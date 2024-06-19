@@ -84,6 +84,7 @@ message ShareEndpointMeta {
   uint64 min_reader_ver = 101;
 
   string url = 1;
+  // `tenant` is needless anymore, keep it as empty string
   string tenant = 2;
   map<string, string> args = 3;
   optional string comment = 4;

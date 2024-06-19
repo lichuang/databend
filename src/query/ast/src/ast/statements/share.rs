@@ -27,12 +27,23 @@ use crate::ast::ShareGrantObjectName;
 use crate::ast::ShareGrantObjectPrivilege;
 use crate::ast::UriLocation;
 
+#[inline]
+fn mask_string(s: &str, unmask_len: usize) -> String {
+    if s.len() <= unmask_len {
+        s.to_string()
+    } else {
+        let mut ret = "******".to_string();
+        ret.push_str(&s[(s.len() - unmask_len)..]);
+        ret
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut)]
 pub struct CreateShareEndpointStmt {
     pub create_option: CreateOption,
     pub endpoint: Identifier,
     pub url: UriLocation,
-    pub tenant: Identifier,
+    pub token: Identifier,
     pub args: BTreeMap<String, String>,
     pub comment: Option<String>,
 }
@@ -49,7 +60,7 @@ impl Display for CreateShareEndpointStmt {
         }
         write!(f, "{}", self.endpoint)?;
         write!(f, " URL={}", self.url)?;
-        write!(f, " TENANT={} ARGS=(", self.tenant)?;
+        write!(f, " TOKEN={} ARGS=(", mask_string(&self.token.name, 3))?;
         write_comma_separated_string_map(f, &self.args)?;
         write!(f, ")")?;
         if let Some(comment) = &self.comment {

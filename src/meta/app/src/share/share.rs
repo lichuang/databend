@@ -34,6 +34,8 @@ use crate::share::share_name_ident::ShareNameIdentRaw;
 use crate::share::ShareEndpointIdent;
 use crate::tenant::Tenant;
 
+pub const SHARE_ENDPOINT_TOKEN: &str = "TOKEN";
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShowSharesReq {
     pub tenant: Tenant,
@@ -252,7 +254,7 @@ pub struct CreateShareEndpointReq {
     pub create_option: CreateOption,
     pub endpoint: ShareEndpointIdent,
     pub url: String,
-    pub tenant: Tenant,
+    pub token: String,
     pub args: BTreeMap<String, String>,
     pub comment: Option<String>,
     pub create_on: DateTime<Utc>,
@@ -267,7 +269,7 @@ pub struct CreateShareEndpointReply {
 pub struct UpsertShareEndpointReq {
     pub endpoint: ShareEndpointIdent,
     pub url: String,
-    pub tenant: String,
+    pub token: String,
     pub args: BTreeMap<String, String>,
     pub create_on: DateTime<Utc>,
 }
@@ -305,6 +307,7 @@ pub struct DropShareEndpointReply {}
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Default)]
 pub struct ShareEndpointMeta {
     pub url: String,
+    // `tenant` is needless anymore, keep it as empty string
     pub tenant: String,
     pub args: BTreeMap<String, String>,
     pub comment: Option<String>,
@@ -317,10 +320,13 @@ impl ShareEndpointMeta {
     }
 
     pub fn new(req: &CreateShareEndpointReq) -> Self {
+        // save token into args map
+        let mut args = req.args.clone();
+        args.insert(SHARE_ENDPOINT_TOKEN.to_string(), req.token.clone());
         Self {
             url: req.url.clone(),
-            tenant: req.tenant.tenant_name().to_string(),
-            args: req.args.clone(),
+            tenant: "".to_string(),
+            args,
             comment: req.comment.clone(),
             create_on: req.create_on,
         }
@@ -328,15 +334,25 @@ impl ShareEndpointMeta {
 
     pub fn if_need_to_upsert(&self, req: &UpsertShareEndpointReq) -> bool {
         // upsert only when these fields not equal
-        self.url != req.url || self.args != req.args || self.tenant != req.tenant
+        if self.url != req.url || self.args != req.args {
+            return true;
+        }
+        if let Some(token) = self.args.get(SHARE_ENDPOINT_TOKEN) {
+            return token != &req.token;
+        }
+
+        return true;
     }
 
     pub fn upsert(&self, req: &UpsertShareEndpointReq) -> Self {
         let mut meta = self.clone();
+        // save token into args map
+        let mut args = req.args.clone();
+        args.insert(SHARE_ENDPOINT_TOKEN.to_string(), req.token.clone());
 
         meta.url = req.url.clone();
-        meta.args = req.args.clone();
-        meta.tenant = req.tenant.clone();
+        meta.tenant = "".to_string();
+        meta.args = args;
         meta.create_on = req.create_on;
 
         meta

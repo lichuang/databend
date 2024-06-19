@@ -38,7 +38,7 @@ pub struct CreateShareEndpointPlan {
     pub create_option: CreateOption,
     pub endpoint: ShareEndpointIdent,
     pub url: String,
-    pub tenant: Tenant,
+    pub token: String,
     pub args: BTreeMap<String, String>,
     pub comment: Option<String>,
 }
@@ -49,7 +49,7 @@ impl From<CreateShareEndpointPlan> for CreateShareEndpointReq {
             create_option: p.create_option,
             endpoint: p.endpoint.clone(),
             url: p.url.clone(),
-            tenant: p.tenant.clone(),
+            token: p.token.clone(),
             args: p.args.clone(),
             comment: p.comment,
             create_on: Utc::now(),

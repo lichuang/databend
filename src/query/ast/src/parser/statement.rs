@@ -1532,7 +1532,7 @@ pub fn statement_body(i: Input) -> IResult<Statement> {
             CREATE ~ ( OR ~ ^REPLACE )? ~ SHARE ~ ENDPOINT ~ ( IF ~ ^NOT ~ ^EXISTS )?
              ~ #ident
              ~ URL ~ "=" ~ #share_endpoint_uri_location
-             ~ TENANT ~ "=" ~ #ident
+             ~ TOKEN ~ "=" ~ #ident
              ~ ( ARGS ~ ^"=" ~ ^#options)?
              ~ ( COMMENT ~ ^"=" ~ ^#literal_string)?
         },
@@ -1548,7 +1548,7 @@ pub fn statement_body(i: Input) -> IResult<Statement> {
             url,
             _,
             _,
-            tenant,
+            token,
             args_opt,
             comment_opt,
         )| {
@@ -1559,7 +1559,7 @@ pub fn statement_body(i: Input) -> IResult<Statement> {
                 create_option,
                 endpoint,
                 url,
-                tenant,
+                token,
                 args: match args_opt {
                     Some(opt) => opt.2,
                     None => BTreeMap::new(),
