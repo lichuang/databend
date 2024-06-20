@@ -2102,11 +2102,7 @@ impl<KV: kvapi::KVApi<Error = MetaError> + ?Sized> SchemaApi for KV {
             "get_table"
         );
 
-        let db_type = db_meta
-            .from_share
-            .map_or(DatabaseType::NormalDB, |share_ident| {
-                DatabaseType::ShareDB(share_ident)
-            });
+        let db_type = DatabaseType::NormalDB;
 
         let tb_info = TableInfo {
             ident: TableIdent {
@@ -2152,6 +2148,13 @@ impl<KV: kvapi::KVApi<Error = MetaError> + ?Sized> SchemaApi for KV {
                 return Err(e);
             }
         };
+
+        // cannot operate on shared database
+        if let Some(from_share) = db_meta.from_share {
+            return Err(KVAppError::AppError(AppError::ShareHasNoGrantedPrivilege(
+                ShareHasNoGrantedPrivilege::new(from_share.tenant_name(), from_share.name()),
+            )));
+        }
 
         // List tables by tenant, db_id, table_name.
         let table_id_history_ident = TableIdHistoryIdent {
@@ -2231,12 +2234,7 @@ impl<KV: kvapi::KVApi<Error = MetaError> + ?Sized> SchemaApi for KV {
                             table_name: table_id_list_key.table_name.clone(),
                         };
 
-                        let db_type = db_meta
-                            .from_share
-                            .clone()
-                            .map_or(DatabaseType::NormalDB, |share_ident| {
-                                DatabaseType::ShareDB(share_ident)
-                            });
+                        let db_type = DatabaseType::NormalDB;
 
                         let tb_info = TableInfo {
                             ident: TableIdent {

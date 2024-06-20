@@ -105,6 +105,7 @@ pub use table::RenameTableReq;
 pub use table::SetTableColumnMaskPolicyAction;
 pub use table::SetTableColumnMaskPolicyReply;
 pub use table::SetTableColumnMaskPolicyReq;
+pub use table::ShareDBParams;
 pub use table::TableCopiedFileInfo;
 pub use table::TableCopiedFileNameIdent;
 pub use table::TableId;

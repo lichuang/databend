@@ -53,6 +53,10 @@ impl FromToProto for mt::DatabaseMeta {
                 Some(from_share) => Some(ShareNameIdentRaw::from_pb(from_share)?),
                 None => None,
             },
+            using_share_endpoint: match p.using_share_endpoint {
+                Some(using_share_endpoint) => Some(using_share_endpoint),
+                None => None,
+            },
         };
         Ok(v)
     }
@@ -74,6 +78,10 @@ impl FromToProto for mt::DatabaseMeta {
             shared_by: Vec::from_iter(self.shared_by.clone()),
             from_share: match &self.from_share {
                 Some(from_share) => Some(from_share.to_pb()?),
+                None => None,
+            },
+            using_share_endpoint: match &self.using_share_endpoint {
+                Some(using_share_endpoint) => Some(using_share_endpoint.clone()),
                 None => None,
             },
         };

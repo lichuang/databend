@@ -156,12 +156,29 @@ impl Display for TableIdHistoryIdent {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
+pub struct ShareDBParams {
+    pub share_ident: ShareNameIdentRaw,
+    pub share_endpoint_url: String,
+    pub share_endpoint_token: String,
+}
+
+impl ShareDBParams {
+    pub fn new(share_ident: ShareNameIdentRaw) -> Self {
+        Self {
+            share_ident,
+            share_endpoint_url: "".to_string(),
+            share_endpoint_token: "".to_string(),
+        }
+    }
+}
+
 // serde is required by [`TableInfo`]
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq, Default)]
 pub enum DatabaseType {
     #[default]
     NormalDB,
-    ShareDB(ShareNameIdentRaw),
+    ShareDB(ShareDBParams),
 }
 
 impl Display for DatabaseType {
@@ -170,12 +187,13 @@ impl Display for DatabaseType {
             DatabaseType::NormalDB => {
                 write!(f, "normal database")
             }
-            DatabaseType::ShareDB(share_ident) => {
+            DatabaseType::ShareDB(share_params) => {
                 write!(
                     f,
-                    "share database: {}-{}",
-                    share_ident.tenant_name(),
-                    share_ident.name()
+                    "share database: {}-{} using {}",
+                    share_params.share_ident.tenant_name(),
+                    share_params.share_ident.name(),
+                    share_params.share_endpoint_url,
                 )
             }
         }

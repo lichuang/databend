@@ -161,7 +161,8 @@ impl FuseTable {
         let cluster_key_meta = table_info.meta.cluster_key();
 
         let (mut operator, table_type) = match table_info.db_type.clone() {
-            DatabaseType::ShareDB(share_ident) => {
+            DatabaseType::ShareDB(share_params) => {
+                let share_ident = share_params.share_ident;
                 let operator = create_share_table_operator(
                     ShareTableConfig::share_endpoint_address(),
                     ShareTableConfig::share_endpoint_token(),

@@ -97,6 +97,7 @@ pub struct DatabaseMeta {
     // shared by share_id
     pub shared_by: BTreeSet<u64>,
     pub from_share: Option<ShareNameIdentRaw>,
+    pub using_share_endpoint: Option<String>,
 }
 
 impl Default for DatabaseMeta {
@@ -111,6 +112,7 @@ impl Default for DatabaseMeta {
             drop_on: None,
             shared_by: BTreeSet::new(),
             from_share: None,
+            using_share_endpoint: None,
         }
     }
 }
