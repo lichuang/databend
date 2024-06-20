@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use chrono::DateTime;
 use chrono::Utc;
+use databend_common_ast::ast::AstShareCredential;
 use enumflags2::bitflags;
 use enumflags2::BitFlags;
 
@@ -249,12 +250,31 @@ pub struct GetObjectGrantPrivilegesReply {
     pub privileges: Vec<ObjectGrantPrivilege>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum ShareCredential {
+    HMAC(String),
+}
+
+impl Default for ShareCredential {
+    fn default() -> Self {
+        ShareCredential::HMAC("".to_string())
+    }
+}
+
+impl From<AstShareCredential> for ShareCredential {
+    fn from(p: AstShareCredential) -> Self {
+        match &p {
+            AstShareCredential::HMAC(key) => ShareCredential::HMAC(key.name.clone()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CreateShareEndpointReq {
     pub create_option: CreateOption,
     pub endpoint: ShareEndpointIdent,
     pub url: String,
-    pub token: String,
+    pub credential: ShareCredential,
     pub args: BTreeMap<String, String>,
     pub comment: Option<String>,
     pub create_on: DateTime<Utc>,
@@ -312,6 +332,7 @@ pub struct ShareEndpointMeta {
     pub args: BTreeMap<String, String>,
     pub comment: Option<String>,
     pub create_on: DateTime<Utc>,
+    pub credential: Option<ShareCredential>,
 }
 
 impl ShareEndpointMeta {
@@ -320,13 +341,11 @@ impl ShareEndpointMeta {
     }
 
     pub fn new(req: &CreateShareEndpointReq) -> Self {
-        // save token into args map
-        let mut args = req.args.clone();
-        args.insert(SHARE_ENDPOINT_TOKEN.to_string(), req.token.clone());
         Self {
             url: req.url.clone(),
             tenant: "".to_string(),
-            args,
+            args: req.args.clone(),
+            credential: Some(req.credential.clone()),
             comment: req.comment.clone(),
             create_on: req.create_on,
         }

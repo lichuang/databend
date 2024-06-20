@@ -239,12 +239,25 @@ impl FromToProto for mt::ShareEndpointMeta {
     where Self: Sized {
         reader_check_msg(p.ver, p.min_reader_ver)?;
 
+        // let credential = if let Some(credential) = p.credential {
+        // Some(credential.credential.ok_or_else(|| Incompatible {
+        // reason: "ShareEndpointMeta.credential.credential is None".to_string(),
+        // })?)
+        // } else {
+        // None
+        // };
+
         Ok(mt::ShareEndpointMeta {
             url: p.url.clone(),
             tenant: p.tenant.clone(),
             args: p.args.clone(),
             comment: p.comment.clone(),
             create_on: DateTime::<Utc>::from_pb(p.create_on)?,
+            credential: if let Some(credential) = p.credential {
+                Some(mt::ShareCredential::from_pb(credential)?)
+            } else {
+                None
+            },
         })
     }
 
@@ -257,6 +270,40 @@ impl FromToProto for mt::ShareEndpointMeta {
             args: self.args.clone(),
             comment: self.comment.clone(),
             create_on: self.create_on.to_pb()?,
+            credential: None,
         })
+    }
+}
+
+impl FromToProto for mt::ShareCredential {
+    type PB = pb::ShareCredential;
+    fn get_pb_ver(_p: &Self::PB) -> u64 {
+        0
+    }
+
+    fn from_pb(p: Self::PB) -> Result<Self, Incompatible>
+    where Self: Sized {
+        match p.credential {
+            Some(pb::share_credential::Credential::Hmac(hmac)) => {
+                Ok(mt::ShareCredential::HMAC(hmac.key.clone()))
+            }
+            None => Err(Incompatible {
+                reason: "ShareCredential cannot be None".to_string(),
+            }),
+        }
+    }
+
+    fn to_pb(&self) -> Result<Self::PB, Incompatible> {
+        match self {
+            Self::HMAC(key) => Ok(Self::PB {
+                credential: Some(pb::share_credential::Credential::Hmac(
+                    pb::ShareCredentialHmac {
+                        ver: VER,
+                        min_reader_ver: MIN_READER_VER,
+                        key: key.clone(),
+                    },
+                )),
+            }),
+        }
     }
 }

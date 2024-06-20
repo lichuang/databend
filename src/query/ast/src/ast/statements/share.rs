@@ -21,6 +21,7 @@ use derive_visitor::DriveMut;
 use itertools::Itertools;
 
 use crate::ast::write_comma_separated_string_map;
+use crate::ast::AstShareCredential;
 use crate::ast::CreateOption;
 use crate::ast::Identifier;
 use crate::ast::ShareGrantObjectName;
@@ -43,7 +44,7 @@ pub struct CreateShareEndpointStmt {
     pub create_option: CreateOption,
     pub endpoint: Identifier,
     pub url: UriLocation,
-    pub token: Identifier,
+    pub credential: AstShareCredential,
     pub args: BTreeMap<String, String>,
     pub comment: Option<String>,
 }
@@ -60,7 +61,11 @@ impl Display for CreateShareEndpointStmt {
         }
         write!(f, "{}", self.endpoint)?;
         write!(f, " URL={}", self.url)?;
-        write!(f, " TOKEN={} ARGS=(", mask_string(&self.token.name, 3))?;
+        match &self.credential {
+            AstShareCredential::HMAC(key) => {
+                write!(f, " HMACKey={} ARGS=(", mask_string(&key.name, 3))?;
+            }
+        }
         write_comma_separated_string_map(f, &self.args)?;
         write!(f, ")")?;
         if let Some(comment) = &self.comment {

@@ -43,7 +43,7 @@ impl Binder {
             create_option,
             endpoint,
             url,
-            token,
+            credential,
             args,
             comment,
         } = stmt;
@@ -53,7 +53,7 @@ impl Binder {
         let plan = CreateShareEndpointPlan {
             create_option: create_option.clone().into(),
             endpoint: ShareEndpointIdent::new(self.ctx.get_tenant(), endpoint),
-            token: token.name.clone(),
+            credential: credential.clone().into(),
             url: format!("{}://{}{}", url.protocol, url.name, url.path),
             args: args.clone(),
             comment: comment.as_ref().cloned(),

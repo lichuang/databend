@@ -218,10 +218,10 @@ impl ShareApiTestSuite {
                 create_option: CreateOption::Create,
                 endpoint: ShareEndpointIdent::new(&tenant1, endpoint1),
                 url: "http://127.0.0.1:22222".to_string(),
-                token: token.clone(),
                 comment: None,
                 create_on,
                 args: BTreeMap::new(),
+                credential: ShareCredential::default(),
             };
 
             let res = mt.create_share_endpoint(req).await;
@@ -232,10 +232,10 @@ impl ShareApiTestSuite {
                 create_option: CreateOption::Create,
                 endpoint: ShareEndpointIdent::new(&tenant1, endpoint1),
                 url: "http://127.0.0.1:21111".to_string(),
-                token: token.clone(),
                 comment: None,
                 args: BTreeMap::new(),
                 create_on,
+                credential: ShareCredential::default(),
             };
 
             let res = mt.create_share_endpoint(req).await;
@@ -251,10 +251,10 @@ impl ShareApiTestSuite {
                 create_option: CreateOption::Create,
                 endpoint: ShareEndpointIdent::new(&tenant1, endpoint2),
                 url: "http://127.0.0.1:21111".to_string(),
-                token: token.clone(),
                 comment: None,
                 create_on,
                 args: BTreeMap::new(),
+                credential: ShareCredential::default(),
             };
 
             let res = mt.create_share_endpoint(req).await;
@@ -382,10 +382,10 @@ impl ShareApiTestSuite {
                 create_option: CreateOption::Create,
                 endpoint: endpoint.clone(),
                 url: url.clone(),
-                token: token.clone(),
                 comment: None,
                 create_on,
                 args: BTreeMap::new(),
+                credential: ShareCredential::default(),
             };
 
             let res = mt.create_share_endpoint(req).await?;
@@ -418,10 +418,10 @@ impl ShareApiTestSuite {
                 create_option: CreateOption::CreateOrReplace,
                 endpoint: endpoint.clone(),
                 url: url.clone(),
-                token: token.clone(),
                 comment: None,
                 create_on,
                 args: BTreeMap::new(),
+                credential: ShareCredential::default(),
             };
 
             let res = mt.create_share_endpoint(req).await?;

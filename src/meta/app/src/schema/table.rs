@@ -35,6 +35,7 @@ use maplit::hashmap;
 use super::CreateOption;
 use crate::schema::database_name_ident::DatabaseNameIdent;
 use crate::share::share_name_ident::ShareNameIdentRaw;
+use crate::share::ShareCredential;
 use crate::share::ShareSpec;
 use crate::share::ShareTableInfoMap;
 use crate::storage::StorageParams;
@@ -160,7 +161,7 @@ impl Display for TableIdHistoryIdent {
 pub struct ShareDBParams {
     pub share_ident: ShareNameIdentRaw,
     pub share_endpoint_url: String,
-    pub share_endpoint_token: String,
+    pub share_endpoint_credential: ShareCredential,
 }
 
 impl ShareDBParams {
@@ -168,7 +169,7 @@ impl ShareDBParams {
         Self {
             share_ident,
             share_endpoint_url: "".to_string(),
-            share_endpoint_token: "".to_string(),
+            share_endpoint_credential: ShareCredential::default(),
         }
     }
 }
