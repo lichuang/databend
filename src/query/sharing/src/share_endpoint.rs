@@ -71,48 +71,7 @@ impl ShareEndpointManager {
         from_tenant: &Tenant,
         to_tenant: Option<&Tenant>,
     ) -> Result<Vec<EndpointConfig>> {
-        debug!(
-            "get_share_endpoint_config from_tenant: {:?}, to_tenant: {:?}",
-            from_tenant, to_tenant
-        );
-
-        if let Some(to_tenant) = to_tenant {
-            if to_tenant.tenant_name() == from_tenant.tenant_name() {
-                match ShareTableConfig::share_endpoint_address() {
-                    Some(url) => {
-                        return Ok(vec![EndpointConfig {
-                            url: format!("http://{}/", url),
-                            token: ShareTableConfig::share_endpoint_token(),
-                            tenant: from_tenant.tenant_name().to_string(),
-                        }]);
-                    }
-                    None => return Ok(vec![]),
-                }
-            }
-        }
-
-        let req = GetShareEndpointReq {
-            tenant: from_tenant.clone(),
-            endpoint: None,
-            to_tenant: to_tenant.cloned(),
-        };
-
-        debug!("get_share_endpoint_config req: {:?}", req);
-
-        let meta_api = UserApiProvider::instance().get_meta_store_client();
-        let resp = meta_api.get_share_endpoint(req).await?;
-
-        debug!("get_share_endpoint_config resp: {:?}", resp);
-
-        let mut share_endpoint_config_vec = Vec::with_capacity(resp.share_endpoint_meta_vec.len());
-        for (_, endpoint_meta) in resp.share_endpoint_meta_vec.iter() {
-            share_endpoint_config_vec.push(EndpointConfig {
-                url: endpoint_meta.url.clone(),
-                token: RefreshableToken::Direct(from_tenant.tenant_name().to_string()),
-                tenant: endpoint_meta.tenant.clone(),
-            });
-        }
-        Ok(share_endpoint_config_vec)
+        Ok(vec![])
     }
 
     #[async_backtrace::framed]
@@ -122,72 +81,7 @@ impl ShareEndpointManager {
         db_info: &DatabaseInfo,
         tables: Vec<String>,
     ) -> Result<TableInfoMap> {
-        let share_name_ident_raw = db_info.meta.from_share.as_ref().unwrap();
-
-        let share_name_ident = share_name_ident_raw.clone().to_tident(());
-
-        let to_tenant = share_name_ident.tenant();
-        let share_name = share_name_ident.share_name();
-
-        let endpoint_meta_config_vec = self
-            .get_share_endpoint_config(from_tenant, Some(to_tenant))
-            .await?;
-        let endpoint_config = match endpoint_meta_config_vec.first() {
-            Some(endpoint_meta_config) => endpoint_meta_config,
-            None => {
-                return Err(ErrorCode::UnknownShareEndpoint(format!(
-                    "Unknown share endpoint on accessing shared database from tenant '{}' to target tenant '{}'",
-                    from_tenant.tenant_name(),
-                    to_tenant.tenant_name()
-                )));
-            }
-        };
-
-        let url = format!(
-            "{}tenant/{}/{}/meta",
-            endpoint_config.url,
-            to_tenant.tenant_name(),
-            share_name
-        );
-        let bs = Bytes::from(serde_json::to_vec(&tables)?);
-        let auth = endpoint_config.token.to_header().await?;
-        let requester = GlobalConfig::instance()
-            .as_ref()
-            .query
-            .tenant_id
-            .tenant_name()
-            .to_string();
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(&url)
-            .header(AUTHORIZATION, auth)
-            .header(CONTENT_LENGTH, bs.len())
-            .header(TENANT_HEADER, requester)
-            .body(Buffer::from(bs))?;
-        let resp = self.client.send(req).await;
-        match resp {
-            Ok(resp) => {
-                if !resp.status().is_success() {
-                    return Err(ErrorCode::ShareStorageError(format!(
-                        "share {:?} storage error: HTTP status {:?}",
-                        share_name,
-                        match resp.status().canonical_reason() {
-                            Some(reason) => reason.to_string(),
-                            None => resp.status().to_string(),
-                        }
-                    )));
-                }
-                let bs = resp.into_body();
-                match serde_json::from_reader(bs.reader()) {
-                    Ok(table_info_map) => Ok(table_info_map),
-                    Err(e) => Err(ErrorCode::ShareStorageError(format!(
-                        "share {:?} storage error: deser json file error: {:?}",
-                        share_name, e
-                    ))),
-                }
-            }
-            Err(err) => Err(err.into()),
-        }
+        Ok(TableInfoMap::default())
     }
 
     #[async_backtrace::framed]
@@ -197,85 +91,6 @@ impl ShareEndpointManager {
         to_tenant: Option<&Tenant>,
         share_name: Option<ShareNameIdent>,
     ) -> Result<Vec<(String, ShareSpec)>> {
-        debug!(
-            "get_inbound_shares from_tenant: {:?}, to_tenant: {:?}, share_name: {:?}",
-            from_tenant, to_tenant, share_name
-        );
-
-        let mut endpoint_meta_config_vec = vec![];
-        // If `to_tenant` is None, query from same tenant for inbound shares
-        if to_tenant.is_none() {
-            debug!("get_inbound_shares to_tenant is None");
-            if let Ok(config_vec) = self
-                .get_share_endpoint_config(from_tenant, Some(from_tenant))
-                .await
-            {
-                endpoint_meta_config_vec.extend(config_vec);
-            }
-        }
-
-        if let Ok(config_vec) = self.get_share_endpoint_config(from_tenant, to_tenant).await {
-            endpoint_meta_config_vec.extend(config_vec);
-        }
-
-        debug!(
-            "get_inbound_shares endpoint_meta_config_vec: {:?}",
-            endpoint_meta_config_vec
-        );
-
-        let mut share_spec_vec = vec![];
-        let share_names: Vec<String> = vec![];
-        for endpoint_config in endpoint_meta_config_vec {
-            let url = format!(
-                "{}tenant/{}/share_spec",
-                endpoint_config.url,
-                from_tenant.tenant_name()
-            );
-
-            debug!("get_inbound_shares url: {:?}", url);
-
-            let bs = Bytes::from(serde_json::to_vec(&share_names)?);
-            let auth = endpoint_config.token.to_header().await?;
-            let requester = GlobalConfig::instance()
-                .as_ref()
-                .query
-                .tenant_id
-                .tenant_name()
-                .to_string();
-            let req = Request::builder()
-                .method(Method::POST)
-                .uri(&url)
-                .header(AUTHORIZATION, auth)
-                .header(CONTENT_LENGTH, bs.len())
-                .header(TENANT_HEADER, requester)
-                .body(Buffer::from(bs))?;
-            let resp = self.client.send(req).await;
-
-            match resp {
-                Ok(resp) => {
-                    let bs = resp.into_body();
-                    let ret: Vec<ShareSpec> = serde_json::from_reader(bs.reader())?;
-                    debug!("get_inbound_shares OK resp ret: {:?}", ret);
-
-                    for share_spec in ret {
-                        if let Some(ref share_name) = share_name {
-                            if share_spec.name == share_name.share_name()
-                                && endpoint_config.tenant == share_name.tenant_name()
-                            {
-                                share_spec_vec.push((endpoint_config.tenant.clone(), share_spec));
-                                return Ok(share_spec_vec);
-                            }
-                        }
-                        share_spec_vec.push((endpoint_config.tenant.clone(), share_spec));
-                    }
-                }
-                Err(err) => {
-                    error!("get_inbound_shares error: {:?}", err);
-                    continue;
-                }
-            }
-        }
-
-        Ok(share_spec_vec)
+        Ok(vec![])
     }
 }

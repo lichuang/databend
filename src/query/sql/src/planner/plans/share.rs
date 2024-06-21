@@ -82,7 +82,6 @@ impl From<ShowShareEndpointPlan> for GetShareEndpointReq {
         GetShareEndpointReq {
             tenant: p.tenant,
             endpoint: None,
-            to_tenant: None,
         }
     }
 }

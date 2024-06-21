@@ -279,7 +279,6 @@ impl ShareApiTestSuite {
             let req = GetShareEndpointReq {
                 tenant: upsert_tenant.clone(),
                 endpoint: None,
-                to_tenant: None,
             };
             let res = mt.get_share_endpoint(req).await;
             assert!(res.is_ok());
@@ -307,7 +306,6 @@ impl ShareApiTestSuite {
             let req = GetShareEndpointReq {
                 tenant: upsert_tenant.clone(),
                 endpoint: None,
-                to_tenant: None,
             };
             let res = mt.get_share_endpoint(req).await;
             assert!(res.is_ok());
@@ -322,7 +320,6 @@ impl ShareApiTestSuite {
             let req = GetShareEndpointReq {
                 tenant: tenant1.clone(),
                 endpoint: None,
-                to_tenant: None,
             };
 
             let res = mt.get_share_endpoint(req).await;
@@ -332,7 +329,6 @@ impl ShareApiTestSuite {
             let req = GetShareEndpointReq {
                 tenant: tenant1.clone(),
                 endpoint: Some(endpoint1.to_string()),
-                to_tenant: None,
             };
 
             let res = mt.get_share_endpoint(req).await;
@@ -352,7 +348,6 @@ impl ShareApiTestSuite {
             let req = GetShareEndpointReq {
                 tenant: tenant1.clone(),
                 endpoint: None,
-                to_tenant: None,
             };
 
             let res = mt.get_share_endpoint(req).await;
@@ -362,7 +357,6 @@ impl ShareApiTestSuite {
             let req = GetShareEndpointReq {
                 tenant: tenant1.clone(),
                 endpoint: Some(endpoint1.to_string()),
-                to_tenant: None,
             };
 
             let res = mt.get_share_endpoint(req).await;
@@ -404,7 +398,6 @@ impl ShareApiTestSuite {
             let req = GetShareEndpointReq {
                 tenant: tenant1.clone(),
                 endpoint: Some(endpoint_name.to_string()),
-                to_tenant: None,
             };
 
             let res = mt.get_share_endpoint(req).await?;
@@ -428,7 +421,6 @@ impl ShareApiTestSuite {
             let req = GetShareEndpointReq {
                 tenant: tenant1.clone(),
                 endpoint: Some(endpoint_name.to_string()),
-                to_tenant: None,
             };
 
             let res = mt.get_share_endpoint(req).await?;

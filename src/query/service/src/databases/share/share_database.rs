@@ -19,6 +19,7 @@ use databend_common_catalog::table::Table;
 use databend_common_exception::ErrorCode;
 use databend_common_exception::Result;
 use databend_common_meta_api::SchemaApi;
+use databend_common_meta_api::ShareApi;
 use databend_common_meta_app::schema::CommitTableMetaReply;
 use databend_common_meta_app::schema::CommitTableMetaReq;
 use databend_common_meta_app::schema::CreateTableReply;
@@ -41,6 +42,7 @@ use databend_common_meta_app::schema::UpdateTableMetaReply;
 use databend_common_meta_app::schema::UpdateTableMetaReq;
 use databend_common_meta_app::schema::UpsertTableOptionReply;
 use databend_common_meta_app::schema::UpsertTableOptionReq;
+use databend_common_meta_app::share::GetShareEndpointReq;
 use databend_common_sharing::ShareEndpointManager;
 
 use crate::databases::Database;
@@ -72,7 +74,21 @@ impl ShareDatabase {
     }
 
     #[async_backtrace::framed]
+    async fn get_share_endpoint_meta(&self) -> Result<()> {
+        let endpoint = self.db_info.meta.using_share_endpoint.as_ref().unwrap();
+        let req = GetShareEndpointReq {
+            tenant: self.get_tenant().clone(),
+            endpoint: Some(endpoint.clone()),
+        };
+        let reply = self.ctx.meta.get_share_endpoint(req).await?;
+        println!("share_endpoint meta: {:?}", reply.share_endpoint_meta_vec);
+        Ok(())
+    }
+
+    #[async_backtrace::framed]
     async fn get_table_info(&self, table_name: &str) -> Result<Arc<TableInfo>> {
+        self.get_share_endpoint_meta().await?;
+
         let table_info_map = ShareEndpointManager::instance()
             .get_table_info_map(self.ctx.tenant(), &self.db_info, vec![
                 table_name.to_string(),
@@ -90,6 +106,8 @@ impl ShareDatabase {
 
     #[async_backtrace::framed]
     async fn list_tables(&self) -> Result<Vec<Arc<TableInfo>>> {
+        self.get_share_endpoint_meta().await?;
+
         let table_info_map = ShareEndpointManager::instance()
             .get_table_info_map(&self.ctx.tenant, &self.db_info, vec![])
             .await?;
