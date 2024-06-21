@@ -57,6 +57,9 @@ pub struct ShareDatabase {
 impl ShareDatabase {
     pub const NAME: &'static str = "SHARE";
     pub fn try_create(ctx: DatabaseContext, db_info: DatabaseInfo) -> Result<Box<dyn Database>> {
+        debug_assert!(
+            db_info.meta.from_share.is_some() && db_info.meta.using_share_endpoint.is_some()
+        );
         Ok(Box::new(Self { ctx, db_info }))
     }
 

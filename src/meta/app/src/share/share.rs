@@ -35,8 +35,6 @@ use crate::share::share_name_ident::ShareNameIdentRaw;
 use crate::share::ShareEndpointIdent;
 use crate::tenant::Tenant;
 
-pub const SHARE_ENDPOINT_TOKEN: &str = "TOKEN";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShowSharesReq {
     pub tenant: Tenant,
@@ -289,7 +287,7 @@ pub struct CreateShareEndpointReply {
 pub struct UpsertShareEndpointReq {
     pub endpoint: ShareEndpointIdent,
     pub url: String,
-    pub token: String,
+    pub credential: ShareCredential,
     pub args: BTreeMap<String, String>,
     pub create_on: DateTime<Utc>,
 }
@@ -352,26 +350,24 @@ impl ShareEndpointMeta {
     }
 
     pub fn if_need_to_upsert(&self, req: &UpsertShareEndpointReq) -> bool {
-        // upsert only when these fields not equal
         if self.url != req.url || self.args != req.args {
             return true;
-        }
-        if let Some(token) = self.args.get(SHARE_ENDPOINT_TOKEN) {
-            return token != &req.token;
+        };
+
+        if let Some(credential) = &self.credential {
+            return credential == &req.credential;
         }
 
-        return true;
+        true
     }
 
     pub fn upsert(&self, req: &UpsertShareEndpointReq) -> Self {
         let mut meta = self.clone();
-        // save token into args map
-        let mut args = req.args.clone();
-        args.insert(SHARE_ENDPOINT_TOKEN.to_string(), req.token.clone());
 
         meta.url = req.url.clone();
         meta.tenant = "".to_string();
-        meta.args = args;
+        meta.args = req.args.clone();
+        meta.credential = Some(req.credential.clone());
         meta.create_on = req.create_on;
 
         meta

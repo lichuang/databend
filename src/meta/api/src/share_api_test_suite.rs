@@ -207,8 +207,6 @@ impl ShareApiTestSuite {
         let tenant_name1 = "tenant1";
         let endpoint1 = "endpoint1";
         let endpoint2 = "endpoint2";
-
-        let token = "token".to_string();
         let tenant1 = Tenant::new_literal(tenant_name1);
 
         info!("--- create share endpoints");
@@ -270,7 +268,7 @@ impl ShareApiTestSuite {
             let upsert_req = UpsertShareEndpointReq {
                 endpoint: ShareEndpointIdent::new(&upsert_tenant, endpoint2),
                 url: "http://127.0.0.1:21111".to_string(),
-                token: token.clone(),
+                credential: ShareCredential::default(),
                 create_on,
                 args: BTreeMap::new(),
             };
@@ -298,7 +296,7 @@ impl ShareApiTestSuite {
             let upsert_req = UpsertShareEndpointReq {
                 endpoint: ShareEndpointIdent::new(&upsert_tenant, endpoint2),
                 url: "http://127.0.0.1:22222".to_string(),
-                token: token.clone(),
+                credential: ShareCredential::default(),
                 create_on,
                 args: BTreeMap::new(),
             };
