@@ -262,7 +262,7 @@ impl Default for ShareCredential {
 impl From<AstShareCredential> for ShareCredential {
     fn from(p: AstShareCredential) -> Self {
         match &p {
-            AstShareCredential::HMAC(key) => ShareCredential::HMAC(key.name.clone()),
+            AstShareCredential::HMAC(key) => ShareCredential::HMAC(key.to_string()),
         }
     }
 }

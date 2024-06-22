@@ -14,6 +14,7 @@
 
 use databend_common_ast::ast::*;
 use databend_common_exception::Result;
+use databend_common_meta_app::share::ShareCredential;
 use databend_common_meta_app::share::ShareEndpointIdent;
 use itertools::Itertools;
 
@@ -50,10 +51,15 @@ impl Binder {
 
         let endpoint = normalize_identifier(endpoint, &self.name_resolution_ctx).name;
 
+        // if credential_options.is_empty() {}
+
+        let credential = credential.clone().into();
+        // ShareCredential::HMAC(credential_options.get("HMAC_KEY").unwrap().to_string());
+
         let plan = CreateShareEndpointPlan {
             create_option: create_option.clone().into(),
             endpoint: ShareEndpointIdent::new(self.ctx.get_tenant(), endpoint),
-            credential: credential.clone().into(),
+            credential,
             url: format!("{}://{}{}", url.protocol, url.name, url.path),
             args: args.clone(),
             comment: comment.as_ref().cloned(),

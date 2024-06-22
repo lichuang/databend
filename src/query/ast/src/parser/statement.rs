@@ -1536,6 +1536,7 @@ pub fn statement_body(i: Input) -> IResult<Statement> {
             CREATE ~ ( OR ~ ^REPLACE )? ~ SHARE ~ ENDPOINT ~ ( IF ~ ^NOT ~ ^EXISTS )?
              ~ #ident
              ~ URL ~ "=" ~ #share_endpoint_uri_location
+             //~ CREDENTIAL ~ ^"=" ~ ^#options
              ~ CREDENTIAL ~ "=" ~ #share_endpoint_credential
              ~ ( ARGS ~ ^"=" ~ ^#options)?
              ~ ( COMMENT ~ ^"=" ~ ^#literal_string)?

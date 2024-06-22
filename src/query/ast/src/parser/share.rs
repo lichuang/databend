@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 
 use nom::combinator::map;
 
+use super::stage::parameter_to_string;
 use crate::ast::AstShareCredential;
 use crate::ast::UriLocation;
 use crate::parser::common::*;
@@ -40,9 +41,9 @@ pub fn share_endpoint_uri_location(i: Input) -> IResult<UriLocation> {
 pub fn share_endpoint_credential(i: Input) -> IResult<AstShareCredential> {
     let mut hmac = map(
         rule! {
-            "(" ~ HMAC_KEY ~ "=" ~ "\"" ~ #ident ~ "\"" ~ ")"
+            "(" ~ HMAC_KEY ~ "=" ~ #parameter_to_string ~ ")"
         },
-        |(_, _, _, _, hmac_key, _, _)| AstShareCredential::HMAC(hmac_key),
+        |(_, _, _, hmac_key, _)| AstShareCredential::HMAC(hmac_key),
     );
 
     rule!(

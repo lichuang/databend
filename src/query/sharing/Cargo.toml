@@ -27,6 +27,10 @@ moka = "0.12"
 opendal = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+ring="0.16.20"
+hex = "0.4"
+base64 = "0.22"
+reqwest = { workspace = true }
 
 [lints]
 workspace = true

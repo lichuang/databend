@@ -44,6 +44,7 @@ pub struct CreateShareEndpointStmt {
     pub create_option: CreateOption,
     pub endpoint: Identifier,
     pub url: UriLocation,
+    // pub credential_options: BTreeMap<String, String>,
     pub credential: AstShareCredential,
     pub args: BTreeMap<String, String>,
     pub comment: Option<String>,
@@ -61,11 +62,7 @@ impl Display for CreateShareEndpointStmt {
         }
         write!(f, "{}", self.endpoint)?;
         write!(f, " URL={}", self.url)?;
-        match &self.credential {
-            AstShareCredential::HMAC(key) => {
-                write!(f, " HMACKey={} ARGS=(", mask_string(&key.name, 3))?;
-            }
-        }
+        write!(f, " ARGS=(")?;
         write_comma_separated_string_map(f, &self.args)?;
         write!(f, ")")?;
         if let Some(comment) = &self.comment {
