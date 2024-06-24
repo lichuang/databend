@@ -65,6 +65,7 @@ impl ShareEndpointClient {
                     let signature = encode(signature.as_ref());
                     headers.insert(SIGNATURE_HEADER, signature.parse().unwrap());
                 }
+                _ => {}
             }
         }
         headers

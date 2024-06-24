@@ -324,6 +324,7 @@ build_exceptions! {
     UnsupportedEngineParams(2703),
 
     // Share error codes.
+    ErrorShareEndpointCredential(2704),
     ShareAlreadyExists(2705),
     UnknownShare(2706),
     UnknownShareId(2707),

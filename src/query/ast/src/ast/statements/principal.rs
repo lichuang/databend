@@ -204,11 +204,6 @@ impl Display for ShareGrantObjectName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut)]
-pub enum AstShareCredential {
-    HMAC(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Drive, DriveMut)]
 pub enum ShareGrantObjectPrivilege {
     // For DATABASE or SCHEMA
     Usage,

@@ -14,15 +14,10 @@
 
 use std::collections::BTreeMap;
 
-use nom::combinator::map;
-
-use super::stage::parameter_to_string;
-use crate::ast::AstShareCredential;
 use crate::ast::UriLocation;
 use crate::parser::common::*;
 use crate::parser::expr::*;
 use crate::parser::input::Input;
-use crate::parser::token::HMAC_KEY;
 use crate::parser::ErrorKind;
 use crate::rule;
 
@@ -35,18 +30,5 @@ pub fn share_endpoint_uri_location(i: Input) -> IResult<UriLocation> {
             UriLocation::from_uri(location, "".to_string(), BTreeMap::new())
                 .map_err(|_| nom::Err::Failure(ErrorKind::Other("invalid uri")))
         },
-    )(i)
-}
-
-pub fn share_endpoint_credential(i: Input) -> IResult<AstShareCredential> {
-    let mut hmac = map(
-        rule! {
-            "(" ~ HMAC_KEY ~ "=" ~ #parameter_to_string ~ ")"
-        },
-        |(_, _, _, hmac_key, _)| AstShareCredential::HMAC(hmac_key),
-    );
-
-    rule!(
-        #hmac
     )(i)
 }

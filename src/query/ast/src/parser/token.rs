@@ -642,8 +642,6 @@ pub enum TokenKind {
     GZIP,
     #[token("HAVING", ignore(ascii_case))]
     HAVING,
-    #[token("HMAC_KEY", ignore(ascii_case))]
-    HMAC_KEY,
     #[token("HIGH", ignore(ascii_case))]
     HIGH,
     #[token("HISTORY", ignore(ascii_case))]

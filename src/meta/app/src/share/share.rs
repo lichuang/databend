@@ -20,7 +20,7 @@ use std::fmt::Formatter;
 
 use chrono::DateTime;
 use chrono::Utc;
-use databend_common_ast::ast::AstShareCredential;
+use databend_common_exception::ErrorCode;
 use enumflags2::bitflags;
 use enumflags2::BitFlags;
 
@@ -251,18 +251,37 @@ pub struct GetObjectGrantPrivilegesReply {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum ShareCredential {
     HMAC(String),
+    None,
 }
 
 impl Default for ShareCredential {
     fn default() -> Self {
-        ShareCredential::HMAC("".to_string())
+        ShareCredential::None
     }
 }
 
-impl From<AstShareCredential> for ShareCredential {
-    fn from(p: AstShareCredential) -> Self {
-        match &p {
-            AstShareCredential::HMAC(key) => ShareCredential::HMAC(key.to_string()),
+impl TryFrom<&BTreeMap<String, String>> for ShareCredential {
+    type Error = ErrorCode;
+
+    fn try_from(p: &BTreeMap<String, String>) -> Result<Self, Self::Error> {
+        match p.get("TYPE") {
+            Some(typ) => {
+                if typ == "HMAC" {
+                    if let Some(key) = p.get("KEY") {
+                        Ok(ShareCredential::HMAC(key.clone()))
+                    } else {
+                        Err(ErrorCode::ErrorShareEndpointCredential(
+                            "HMAC Credential miss key",
+                        ))
+                    }
+                } else {
+                    Err(ErrorCode::ErrorShareEndpointCredential(format!(
+                        "Unsupport Credential type {}",
+                        typ
+                    )))
+                }
+            }
+            None => Ok(ShareCredential::None),
         }
     }
 }
