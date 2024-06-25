@@ -92,8 +92,8 @@ impl Display for CreateDatabaseStmt {
         }
         if let Some(share_params) = &self.share_params {
             let share_params = format!(
-                " FROM SHARE {:?} USING {:?}",
-                share_params.0, share_params.1
+                " FROM SHARE {}.{} USING {}",
+                share_params.0.tenant, share_params.0.share, share_params.1
             );
             write!(f, "{share_params}")?;
         }
