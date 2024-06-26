@@ -48,7 +48,7 @@ pub enum ShowGrantOption {
     ShareName(String),
 }
 
-// (share name, endpoint name)
+// (tenant, share name, endpoint name)
 pub type ShareDatabaseParams = (ShareNameIdent, Identifier);
 
 #[derive(Clone)]

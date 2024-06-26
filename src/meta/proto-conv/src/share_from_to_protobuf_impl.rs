@@ -239,14 +239,6 @@ impl FromToProto for mt::ShareEndpointMeta {
     where Self: Sized {
         reader_check_msg(p.ver, p.min_reader_ver)?;
 
-        // let credential = if let Some(credential) = p.credential {
-        // Some(credential.credential.ok_or_else(|| Incompatible {
-        // reason: "ShareEndpointMeta.credential.credential is None".to_string(),
-        // })?)
-        // } else {
-        // None
-        // };
-
         Ok(mt::ShareEndpointMeta {
             url: p.url.clone(),
             tenant: p.tenant.clone(),
@@ -270,7 +262,11 @@ impl FromToProto for mt::ShareEndpointMeta {
             args: self.args.clone(),
             comment: self.comment.clone(),
             create_on: self.create_on.to_pb()?,
-            credential: None,
+            credential: if let Some(credential) = &self.credential {
+                Some(credential.to_pb()?)
+            } else {
+                None
+            },
         })
     }
 }

@@ -54,8 +54,13 @@ impl ShareEndpointClient {
         Self {}
     }
 
-    fn generate_auth_headers(path: &str, share_endpoint_meta: &ShareEndpointMeta) -> HeaderMap {
+    fn generate_auth_headers(
+        path: &str,
+        share_endpoint_meta: &ShareEndpointMeta,
+        from_tenant: &str,
+    ) -> HeaderMap {
         let mut headers = HeaderMap::new();
+        headers.insert(TENANT_HEADER, from_tenant.parse().unwrap());
         if let Some(credential) = &share_endpoint_meta.credential {
             match credential {
                 ShareCredential::HMAC(key) => {
@@ -79,9 +84,13 @@ impl ShareEndpointClient {
         to_tenant: &str,
         share_name: &str,
     ) -> Result<()> {
-        let path = format!("tenant/{}/{}/share_spec", to_tenant, share_name);
+        let path = format!("/tenant/{}/{}/share_spec", to_tenant, share_name);
         let uri = format!("{}{}", share_endpoint_meta.url, path.clone());
-        let headers = Self::generate_auth_headers(&path, share_endpoint_meta);
+        let headers = Self::generate_auth_headers(&path, share_endpoint_meta, from_tenant);
+        println!("url: {:?}\n", share_endpoint_meta.url);
+        println!("headers: {:?}\n", headers);
+        println!("path: {:?}\n", path);
+        println!("share_endpoint_meta: {:?}\n", share_endpoint_meta);
         let client = reqwest::Client::new();
         let resp = client.get(&uri).headers(headers).send().await;
 
