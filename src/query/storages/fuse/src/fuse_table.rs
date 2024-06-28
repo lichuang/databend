@@ -162,13 +162,7 @@ impl FuseTable {
 
         let (mut operator, table_type) = match table_info.db_type.clone() {
             DatabaseType::ShareDB(share_params) => {
-                let share_ident = share_params.share_ident;
-                let operator = create_share_table_operator(
-                    ShareTableConfig::share_endpoint_address(),
-                    ShareTableConfig::share_endpoint_token(),
-                    &share_ident,
-                    &table_info.name,
-                )?;
+                let operator = create_share_table_operator(&share_params, &table_info.name)?;
                 (operator, FuseTableType::SharedReadOnly)
             }
             DatabaseType::NormalDB => {

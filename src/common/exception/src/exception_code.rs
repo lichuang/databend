@@ -214,7 +214,9 @@ build_exceptions! {
     // Tantivy errors.
     TantivyError(1901),
     TantivyOpenReadError(1902),
-    TantivyQueryParserError(1903)
+    TantivyQueryParserError(1903),
+
+    ReqwestError(1910)
 }
 
 // Meta service errors [2001, 3000].
@@ -376,6 +378,9 @@ build_exceptions! {
 
     // sequence
     SequenceError(3101),
+
+    // Share error codes(continue).
+    CannotFoundShareSpec(3111),
 }
 
 // Storage errors [3001, 4000].

@@ -74,7 +74,7 @@ impl CreateDatabaseInterpreter {
         // 2. get ShareSpec using share endpoint
         let share_endpoint_meta = &reply.share_endpoint_meta_vec[0].1;
         let client = ShareEndpointClient::new();
-        let reply = client
+        let share_spec = client
             .get_share_spec_by_name(
                 share_endpoint_meta,
                 tenant.tenant_name(),
@@ -83,7 +83,23 @@ impl CreateDatabaseInterpreter {
             )
             .await?;
 
-        Ok(())
+        if let Some(db_privileges) = share_spec.db_privileges {
+            if !db_privileges.contains(ShareGrantObjectPrivilege::Usage) {
+                return Err(ErrorCode::ShareHasNoGrantedPrivilege(format!(
+                    "share {} has not granted privilege to {}",
+                    share_name.display(),
+                    tenant.tenant_name()
+                )));
+            } else {
+                return Ok(());
+            }
+        } else {
+            return Err(ErrorCode::ShareHasNoGrantedPrivilege(format!(
+                "share {} has not granted privilege to {}",
+                share_name.display(),
+                tenant.tenant_name()
+            )));
+        }
     }
 }
 

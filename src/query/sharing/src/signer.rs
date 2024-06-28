@@ -24,8 +24,10 @@ use bytes::Buf;
 use bytes::Bytes;
 use databend_common_auth::RefreshableToken;
 use databend_common_config::GlobalConfig;
+use databend_common_meta_app::share::ShareCredential;
 use http::header::AUTHORIZATION;
 use http::header::CONTENT_LENGTH;
+use http::HeaderMap;
 use http::Method;
 use http::Request;
 use log::info;
@@ -34,6 +36,8 @@ use opendal::raw::HttpClient;
 use opendal::raw::Operation;
 use opendal::raw::PresignedRequest;
 use opendal::Buffer;
+
+use crate::ShareEndpointClient;
 
 pub(crate) const TENANT_HEADER: &str = "X-DATABEND-TENANT";
 pub(crate) const SIGNATURE_HEADER: &str = "X-DATABEND-SIGNATURE";
@@ -46,34 +50,49 @@ pub(crate) const HMAC_AUTH_METHOD: &str = "HMAC";
 /// request will get `None`. Please sign it again.
 #[derive(Clone)]
 pub struct SharedSigner {
-    endpoint: String,
+    uri: String,
     cache: Cache<PresignRequest, PresignedRequest>,
     client: HttpClient,
-    token: RefreshableToken,
+    credential: ShareCredential,
+    auth_header_map: HeaderMap,
 }
 
 impl Debug for SharedSigner {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         f.debug_struct("SharedSigner")
-            .field("endpoint", &self.endpoint)
+            .field("uri", &self.uri)
             .finish_non_exhaustive()
     }
 }
 
 impl SharedSigner {
     /// Create a new SharedSigner.
-    pub fn new(endpoint: &str, token: RefreshableToken, client: HttpClient) -> Self {
+    pub fn new(
+        endpoint_url: &str,
+        path: &str,
+        credential: ShareCredential,
+        client: HttpClient,
+    ) -> Self {
         let cache = Cache::builder()
             // Databend Cloud Presign will expire after 3600s (1 hour).
             // We will expire them 10 minutes before to avoid edge cases.
             .time_to_live(Duration::from_secs(3000))
             .build();
 
+        let from_tenant = GlobalConfig::instance()
+            .as_ref()
+            .query
+            .tenant_id
+            .tenant_name()
+            .to_string();
+        let auth_header_map =
+            ShareEndpointClient::generate_auth_headers(path, &credential, &from_tenant);
         Self {
-            endpoint: endpoint.to_string(),
+            uri: format!("{}{}", endpoint_url, &path[1..]),
             cache,
             client,
-            token,
+            credential,
+            auth_header_map,
         }
     }
 
@@ -158,24 +177,17 @@ impl SharedSigner {
                 method: to_method(v.op),
             })
             .collect();
-        let bs = Bytes::from(serde_json::to_vec(&reqs)?);
-        let auth = self.token.to_header().await?;
-        let requester = GlobalConfig::instance()
-            .as_ref()
-            .query
-            .tenant_id
-            .tenant_name()
-            .to_string();
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(&self.endpoint)
-            .header(AUTHORIZATION, auth)
-            .header(CONTENT_LENGTH, bs.len())
-            .header(TENANT_HEADER, requester)
-            .body(Buffer::from(bs))?;
-        let resp = self.client.send(req).await?;
-        let bs = resp.into_body();
-        let items: Vec<PresignResponseItem> = serde_json::from_reader(bs.reader())?;
+
+        let client = reqwest::Client::new();
+        let mut headers = self.auth_header_map.clone();
+        let resp = client
+            .post(&self.uri)
+            .headers(headers)
+            .json(&reqs)
+            .send()
+            .await?;
+        let body = resp.text().await?;
+        let items: Vec<PresignResponseItem> = serde_json::from_str(&body)?;
 
         for item in items {
             self.cache.insert(
@@ -225,7 +237,7 @@ fn from_method(method: &str) -> Operation {
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug)]
 struct PresignRequestItem {
     file_name: String,
     method: String,
