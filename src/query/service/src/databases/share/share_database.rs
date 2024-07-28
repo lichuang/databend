@@ -46,6 +46,7 @@ use databend_common_meta_app::schema::UpsertTableOptionReply;
 use databend_common_meta_app::schema::UpsertTableOptionReq;
 use databend_common_meta_app::share::GetShareEndpointReq;
 use databend_common_meta_app::share::ShareEndpointMeta;
+use databend_common_meta_app::tenant::Tenant;
 use databend_common_sharing::ShareEndpointClient;
 use log::error;
 
@@ -202,12 +203,13 @@ impl Database for ShareDatabase {
         &self.db_info
     }
 
-    fn get_table_by_info(&self, _table_info: &TableInfo) -> Result<Arc<dyn Table>> {
-        // let storage = self.ctx.storage_factory.clone();
-        // storage.get_table(table_info)
-        Err(ErrorCode::PermissionDenied(
-            "Permission denied, cannot get_table_by_info from a shared database".to_string(),
-        ))
+    fn get_tenant(&self) -> &Tenant {
+        &self.ctx.tenant
+    }
+
+    fn get_table_by_info(&self, table_info: &TableInfo) -> Result<Arc<dyn Table>> {
+        let storage = self.ctx.storage_factory.clone();
+        storage.get_table(table_info)
     }
 
     // Get one table by db and table name.

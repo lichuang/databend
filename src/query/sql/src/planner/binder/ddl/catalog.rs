@@ -251,7 +251,7 @@ fn parse_iceberg_rest_catalog(
 
 fn parse_share_catalog(mut options: BTreeMap<String, String>) -> Result<ShareCatalogOption> {
     let input = options
-        .remove("share")
+        .remove("name")
         .ok_or_else(|| ErrorCode::InvalidArgument("share name for share catalog is not specified"))?
         .to_lowercase();
     let tenant_share: Vec<String> = input.split('.').map(|s| s.to_string()).collect();
@@ -262,7 +262,7 @@ fn parse_share_catalog(mut options: BTreeMap<String, String>) -> Result<ShareCat
     }
 
     let share_endpoint = options
-        .remove("using")
+        .remove("endpoint")
         .ok_or_else(|| {
             ErrorCode::InvalidArgument("share endpoint name for share catalog is not specified")
         })?
