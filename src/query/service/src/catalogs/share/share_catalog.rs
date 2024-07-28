@@ -12,29 +12,125 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::any::Any;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use databend_common_catalog::catalog::Catalog;
+use databend_common_catalog::catalog::CatalogCreator;
+use databend_common_catalog::catalog::StorageDescription;
+use databend_common_catalog::database::Database;
+use databend_common_catalog::table::Table;
+use databend_common_catalog::table_args::TableArgs;
+use databend_common_catalog::table_function::TableFunction;
+use databend_common_config::InnerConfig;
 use databend_common_exception::ErrorCode;
 use databend_common_exception::Result;
+use databend_common_meta_api::ShareApi;
 use databend_common_meta_app::schema::database_name_ident::DatabaseNameIdent;
 use databend_common_meta_app::schema::CatalogInfo;
 use databend_common_meta_app::schema::CatalogOption;
+use databend_common_meta_app::schema::CommitTableMetaReply;
+use databend_common_meta_app::schema::CommitTableMetaReq;
+use databend_common_meta_app::schema::CreateDatabaseReply;
+use databend_common_meta_app::schema::CreateDatabaseReq;
+use databend_common_meta_app::schema::CreateIndexReply;
+use databend_common_meta_app::schema::CreateIndexReq;
+use databend_common_meta_app::schema::CreateLockRevReply;
+use databend_common_meta_app::schema::CreateLockRevReq;
+use databend_common_meta_app::schema::CreateSequenceReply;
+use databend_common_meta_app::schema::CreateSequenceReq;
+use databend_common_meta_app::schema::CreateTableIndexReply;
+use databend_common_meta_app::schema::CreateTableIndexReq;
+use databend_common_meta_app::schema::CreateTableReply;
+use databend_common_meta_app::schema::CreateTableReq;
+use databend_common_meta_app::schema::CreateVirtualColumnReply;
+use databend_common_meta_app::schema::CreateVirtualColumnReq;
 use databend_common_meta_app::schema::DatabaseIdent;
 use databend_common_meta_app::schema::DatabaseInfo;
 use databend_common_meta_app::schema::DatabaseMeta;
+use databend_common_meta_app::schema::DeleteLockRevReq;
+use databend_common_meta_app::schema::DropDatabaseReply;
+use databend_common_meta_app::schema::DropDatabaseReq;
+use databend_common_meta_app::schema::DropIndexReply;
+use databend_common_meta_app::schema::DropIndexReq;
+use databend_common_meta_app::schema::DropSequenceReply;
+use databend_common_meta_app::schema::DropSequenceReq;
+use databend_common_meta_app::schema::DropTableByIdReq;
+use databend_common_meta_app::schema::DropTableIndexReply;
+use databend_common_meta_app::schema::DropTableIndexReq;
+use databend_common_meta_app::schema::DropTableReply;
+use databend_common_meta_app::schema::DropVirtualColumnReply;
+use databend_common_meta_app::schema::DropVirtualColumnReq;
+use databend_common_meta_app::schema::ExtendLockRevReq;
+use databend_common_meta_app::schema::GetIndexReply;
+use databend_common_meta_app::schema::GetIndexReq;
+use databend_common_meta_app::schema::GetSequenceNextValueReply;
+use databend_common_meta_app::schema::GetSequenceNextValueReq;
+use databend_common_meta_app::schema::GetSequenceReply;
+use databend_common_meta_app::schema::GetSequenceReq;
+use databend_common_meta_app::schema::GetTableCopiedFileReply;
+use databend_common_meta_app::schema::GetTableCopiedFileReq;
+use databend_common_meta_app::schema::IndexMeta;
+use databend_common_meta_app::schema::ListIndexesByIdReq;
+use databend_common_meta_app::schema::ListIndexesReq;
+use databend_common_meta_app::schema::ListLockRevReq;
+use databend_common_meta_app::schema::ListLocksReq;
+use databend_common_meta_app::schema::ListVirtualColumnsReq;
+use databend_common_meta_app::schema::LockInfo;
+use databend_common_meta_app::schema::LockMeta;
+use databend_common_meta_app::schema::RenameDatabaseReply;
+use databend_common_meta_app::schema::RenameDatabaseReq;
+use databend_common_meta_app::schema::RenameTableReply;
+use databend_common_meta_app::schema::RenameTableReq;
+use databend_common_meta_app::schema::SetTableColumnMaskPolicyReply;
+use databend_common_meta_app::schema::SetTableColumnMaskPolicyReq;
 use databend_common_meta_app::schema::ShareCatalogOption;
+use databend_common_meta_app::schema::ShareDbId;
+use databend_common_meta_app::schema::TableInfo;
+use databend_common_meta_app::schema::TableMeta;
+use databend_common_meta_app::schema::TruncateTableReply;
+use databend_common_meta_app::schema::TruncateTableReq;
+use databend_common_meta_app::schema::UndropDatabaseReply;
+use databend_common_meta_app::schema::UndropDatabaseReq;
+use databend_common_meta_app::schema::UndropTableReply;
+use databend_common_meta_app::schema::UndropTableReq;
+use databend_common_meta_app::schema::UpdateIndexReply;
+use databend_common_meta_app::schema::UpdateIndexReq;
+use databend_common_meta_app::schema::UpdateVirtualColumnReply;
+use databend_common_meta_app::schema::UpdateVirtualColumnReq;
+use databend_common_meta_app::schema::UpsertTableOptionReply;
+use databend_common_meta_app::schema::UpsertTableOptionReq;
+use databend_common_meta_app::schema::VirtualColumnMeta;
+use databend_common_meta_app::share::share_name_ident::ShareNameIdentRaw;
 use databend_common_meta_app::share::GetShareEndpointReq;
 use databend_common_meta_app::share::ShareDatabaseSpec;
 use databend_common_meta_app::share::ShareSpec;
+use databend_common_meta_app::tenant::Tenant;
+use databend_common_meta_store::MetaStore;
+use databend_common_meta_types::MetaId;
+use databend_common_meta_types::SeqV;
 use databend_common_sharing::ShareEndpointClient;
+use databend_common_storages_factory::StorageFactory;
 use databend_common_users::UserApiProvider;
 
-#[derive(Debug)]
-pub struct ShareCreator;
+use crate::catalogs::default::CatalogContext;
+use crate::databases::DatabaseContext;
+use crate::databases::DatabaseFactory;
+use crate::databases::ShareDatabase;
 
-impl CatalogCreator for ShareCreator {
-    fn try_create(&self, info: Arc<CatalogInfo>) -> Result<Arc<dyn Catalog>> {
+#[derive(Debug)]
+pub struct ShareCatalogCreator;
+
+impl CatalogCreator for ShareCatalogCreator {
+    fn try_create(
+        &self,
+        info: Arc<CatalogInfo>,
+        conf: InnerConfig,
+        meta: &MetaStore,
+    ) -> Result<Arc<dyn Catalog>> {
         let opt = match &info.meta.catalog_option {
             CatalogOption::Share(opt) => opt,
             _ => unreachable!(
@@ -42,8 +138,20 @@ impl CatalogCreator for ShareCreator {
             ),
         };
 
+        // Storage factory.
+        let storage_factory = StorageFactory::create(conf.clone());
+
+        // Database factory.
+        let database_factory = DatabaseFactory::create(conf.clone());
+
+        let ctx = CatalogContext {
+            meta: meta.to_owned(),
+            storage_factory: Arc::new(storage_factory),
+            database_factory: Arc::new(database_factory),
+        };
+
         let catalog: Arc<dyn Catalog> =
-            Arc::new(ShareCatalog::try_create(info.clone(), opt.to_owned())?);
+            Arc::new(ShareCatalog::try_create(info.clone(), opt.to_owned(), ctx)?);
 
         Ok(catalog)
     }
@@ -51,6 +159,9 @@ impl CatalogCreator for ShareCreator {
 
 #[derive(Clone)]
 pub struct ShareCatalog {
+    // ctx: CatalogContext,
+    ctx: DatabaseContext,
+
     info: Arc<CatalogInfo>,
 
     option: ShareCatalogOption,
@@ -66,8 +177,20 @@ impl Debug for ShareCatalog {
 }
 
 impl ShareCatalog {
-    pub fn try_create(info: Arc<CatalogInfo>, option: ShareCatalogOption) -> Result<ShareCatalog> {
-        Ok(Self { info, option })
+    pub fn try_create(
+        info: Arc<CatalogInfo>,
+        option: ShareCatalogOption,
+        ctx: CatalogContext,
+    ) -> Result<ShareCatalog> {
+        let ctx = DatabaseContext {
+            meta: ctx.meta.clone(),
+            storage_factory: ctx.storage_factory.clone(),
+            tenant: Tenant {
+                tenant: info.name_ident.tenant.clone(),
+            },
+        };
+
+        Ok(Self { info, option, ctx })
     }
 
     async fn get_share_spec(&self) -> Result<ShareSpec> {
@@ -80,7 +203,9 @@ impl ShareCatalog {
         // 1. get share endpoint
         let meta_api = UserApiProvider::instance().get_meta_store_client();
         let req = GetShareEndpointReq {
-            tenant: tenant.clone(),
+            tenant: Tenant {
+                tenant: tenant.to_owned(),
+            },
             endpoint: Some(share_endpoint.clone()),
         };
         let reply = meta_api.get_share_endpoint(req).await?;
@@ -95,12 +220,7 @@ impl ShareCatalog {
         let share_endpoint_meta = &reply.share_endpoint_meta_vec[0].1;
         let client = ShareEndpointClient::new();
         let share_spec = client
-            .get_share_spec_by_name(
-                share_endpoint_meta,
-                tenant.tenant_name(),
-                provider,
-                share_name,
-            )
+            .get_share_spec_by_name(share_endpoint_meta, tenant, provider, share_name)
             .await?;
 
         Ok(share_spec)
@@ -111,15 +231,27 @@ impl ShareCatalog {
         let share_name = &share_option.share_name;
         let share_endpoint = &share_option.share_endpoint;
         let provider = &share_option.provider;
-        let tenant = &self.info.name_ident.tenant;
 
         DatabaseInfo {
             ident: DatabaseIdent::default(),
-            name_ident: DatabaseNameIdent::new(provider, &database.name),
+            name_ident: DatabaseNameIdent::new(
+                Tenant {
+                    tenant: provider.to_owned(),
+                },
+                &database.name,
+            ),
             meta: DatabaseMeta {
                 engine: "SHARE".to_string(),
                 engine_options: BTreeMap::new(),
                 options: BTreeMap::new(),
+                created_on: database.created_on,
+                updated_on: database.created_on,
+                comment: "".to_string(),
+                drop_on: None,
+                shared_by: BTreeSet::new(),
+                from_share: Some(ShareNameIdentRaw::new(provider, share_name)),
+                using_share_endpoint: Some(share_endpoint.to_owned()),
+                from_share_db_id: Some(ShareDbId::Usage(database.id)),
             },
         }
     }
@@ -143,89 +275,78 @@ impl Catalog for ShareCatalog {
     #[async_backtrace::framed]
     async fn get_database(&self, _tenant: &Tenant, db_name: &str) -> Result<Arc<dyn Database>> {
         let share_spec = self.get_share_spec().await?;
-        if let Some(use_database) = share_spec.use_database {
-            if &use_database.name == db_name {}
+        if let Some(use_database) = &share_spec.use_database {
+            if &use_database.name == db_name {
+                let db_info = self.generate_share_database_info(&use_database);
+                let db = ShareDatabase::try_create(self.ctx.clone(), db_info)?;
+                return Ok(db.into());
+            } else {
+                Err(ErrorCode::UnknownDatabase(format!(
+                    "cannot find database {} from share {}",
+                    db_name, self.option.share_name,
+                )))
+            }
+        } else {
+            Err(ErrorCode::ShareHasNoGrantedDatabase(format!(
+                "share {}.{} has no granted database",
+                self.option.provider, self.option.share_name,
+            )))
         }
-
-        let db = self
-            .client
-            .get_database(FastStr::new(db_name))
-            .await
-            .map(from_thrift_exception)
-            .map_err(from_thrift_error)??;
-
-        let hive_database: HiveDatabase = db.into();
-        let res: Arc<dyn Database> = Arc::new(hive_database);
-        Ok(res)
     }
 
     // Get all the databases.
     #[minitrace::trace]
     #[async_backtrace::framed]
     async fn list_databases(&self, _tenant: &Tenant) -> Result<Vec<Arc<dyn Database>>> {
-        let db_names = self
-            .client
-            .get_all_databases()
-            .await
-            .map(from_thrift_exception)
-            .map_err(from_thrift_error)??;
-
-        let mut dbs = Vec::with_capacity(db_names.len());
-
-        for name in db_names {
-            let db = self
-                .client
-                .get_database(name)
-                .await
-                .map(from_thrift_exception)
-                .map_err(from_thrift_error)??;
-
-            let hive_database: HiveDatabase = db.into();
-            let res: Arc<dyn Database> = Arc::new(hive_database);
-            dbs.push(res)
+        let share_spec = self.get_share_spec().await?;
+        if let Some(use_database) = &share_spec.use_database {
+            let db_info = self.generate_share_database_info(&use_database);
+            let db = ShareDatabase::try_create(self.ctx.clone(), db_info)?;
+            Ok(vec![db.into()])
+        } else {
+            Ok(vec![])
         }
-
-        Ok(dbs)
     }
 
     // Operation with database.
     #[async_backtrace::framed]
     async fn create_database(&self, _req: CreateDatabaseReq) -> Result<CreateDatabaseReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot create database in HIVE catalog",
+            "Cannot create database in SHARE catalog",
         ))
     }
 
     #[async_backtrace::framed]
     async fn drop_database(&self, _req: DropDatabaseReq) -> Result<DropDatabaseReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot drop database in HIVE catalog",
+            "Cannot drop database in SHARE catalog",
         ))
     }
 
     #[async_backtrace::framed]
     async fn undrop_database(&self, _req: UndropDatabaseReq) -> Result<UndropDatabaseReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot undrop database in HIVE catalog",
+            "Cannot undrop database in SHARE catalog",
         ))
     }
 
     #[async_backtrace::framed]
     async fn rename_database(&self, _req: RenameDatabaseReq) -> Result<RenameDatabaseReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot rename database in HIVE catalog",
+            "Cannot rename database in SHARE catalog",
         ))
     }
 
-    fn get_table_by_info(&self, table_info: &TableInfo) -> Result<Arc<dyn Table>> {
-        let res: Arc<dyn Table> = Arc::new(HiveTable::try_create(table_info.clone())?);
-        Ok(res)
+    fn get_table_by_info(&self, _table_info: &TableInfo) -> Result<Arc<dyn Table>> {
+        Err(ErrorCode::Unimplemented(
+            "Cannot get_table_by_info in SHARE catalog",
+        ))
     }
 
     #[async_backtrace::framed]
     async fn get_table_meta_by_id(&self, _table_id: MetaId) -> Result<Option<SeqV<TableMeta>>> {
         Err(ErrorCode::Unimplemented(
-            "Cannot get table by id in HIVE catalog",
+            "Cannot get table by id in SHARE catalog",
         ))
     }
 
@@ -235,20 +356,20 @@ impl Catalog for ShareCatalog {
         _table_ids: &[MetaId],
     ) -> Result<Vec<Option<String>>> {
         Err(ErrorCode::Unimplemented(
-            "Cannot get tables name by ids in HIVE catalog",
+            "Cannot get tables name by ids in SHARE catalog",
         ))
     }
 
     #[async_backtrace::framed]
     async fn get_table_name_by_id(&self, _table_id: MetaId) -> Result<Option<String>> {
         Err(ErrorCode::Unimplemented(
-            "Cannot get table name by id in HIVE catalog",
+            "Cannot get table name by id in SHARE catalog",
         ))
     }
 
     async fn get_db_name_by_id(&self, _db_id: MetaId) -> Result<String> {
         Err(ErrorCode::Unimplemented(
-            "Cannot get db name by id in HIVE catalog",
+            "Cannot get db name by id in SHARE catalog",
         ))
     }
 
@@ -258,7 +379,7 @@ impl Catalog for ShareCatalog {
         _db_ids: &[MetaId],
     ) -> Result<Vec<Option<String>>> {
         Err(ErrorCode::Unimplemented(
-            "Cannot get dbs name by ids in HIVE catalog",
+            "Cannot get dbs name by ids in SHARE catalog",
         ))
     }
 
@@ -271,102 +392,107 @@ impl Catalog for ShareCatalog {
         db_name: &str,
         table_name: &str,
     ) -> Result<Arc<dyn Table>> {
-        let table_meta = match self
-            .client
-            .get_table(FastStr::new(db_name), FastStr::new(table_name))
-            .await
-        {
-            Ok(MaybeException::Ok(meta)) => meta,
-            Ok(MaybeException::Exception(exception)) => {
-                return Err(ErrorCode::TableInfoError(format!("{exception:?}")));
+        let share_spec = self.get_share_spec().await?;
+        if let Some(use_database) = &share_spec.use_database {
+            if &use_database.name == db_name {
+                let db_info = self.generate_share_database_info(&use_database);
+                let db = ShareDatabase::try_create(self.ctx.clone(), db_info)?;
+                db.get_table(table_name).await
+            } else {
+                Err(ErrorCode::UnknownDatabase(format!(
+                    "cannot find database {} from share {}",
+                    db_name, self.option.share_name,
+                )))
             }
-            Err(e) => {
-                return Err(from_thrift_error(e));
-            }
-        };
-
-        Self::handle_table_meta(&table_meta)?;
-
-        let fields = self
-            .client
-            .get_schema(FastStr::new(db_name), FastStr::new(table_name))
-            .await
-            .map(from_thrift_exception)
-            .map_err(from_thrift_error)??;
-        let table_info: TableInfo = super::converters::try_into_table_info(
-            self.info.clone(),
-            self.sp.clone(),
-            table_meta,
-            fields,
-        )?;
-        let res: Arc<dyn Table> = Arc::new(HiveTable::try_create(table_info)?);
-
-        Ok(res)
+        } else {
+            Err(ErrorCode::ShareHasNoGrantedDatabase(format!(
+                "share {}.{} has no granted database",
+                self.option.provider, self.option.share_name,
+            )))
+        }
     }
 
     #[minitrace::trace]
     #[async_backtrace::framed]
     async fn list_tables(&self, _tenant: &Tenant, db_name: &str) -> Result<Vec<Arc<dyn Table>>> {
-        let table_names = self
-            .client
-            .get_all_tables(FastStr::new(db_name))
-            .await
-            .map(from_thrift_exception)
-            .map_err(from_thrift_error)??;
-
-        let mut tables = Vec::with_capacity(table_names.len());
-
-        for name in table_names {
-            let table = self.get_table(_tenant, db_name, name.as_str()).await?;
-            tables.push(table)
+        let share_spec = self.get_share_spec().await?;
+        if let Some(use_database) = &share_spec.use_database {
+            if &use_database.name == db_name {
+                let db_info = self.generate_share_database_info(&use_database);
+                let db = ShareDatabase::try_create(self.ctx.clone(), db_info)?;
+                db.list_tables().await
+            } else {
+                Err(ErrorCode::UnknownDatabase(format!(
+                    "cannot find database {} from share {}",
+                    db_name, self.option.share_name,
+                )))
+            }
+        } else {
+            Err(ErrorCode::ShareHasNoGrantedDatabase(format!(
+                "share {}.{} has no granted database",
+                self.option.provider, self.option.share_name,
+            )))
         }
-
-        Ok(tables)
     }
 
     #[async_backtrace::framed]
     async fn list_tables_history(
         &self,
         _tenant: &Tenant,
-        _db_name: &str,
+        db_name: &str,
     ) -> Result<Vec<Arc<dyn Table>>> {
-        Err(ErrorCode::Unimplemented(
-            "Cannot list table history in HIVE catalog",
-        ))
+        let share_spec = self.get_share_spec().await?;
+        if let Some(use_database) = &share_spec.use_database {
+            if &use_database.name == db_name {
+                let db_info = self.generate_share_database_info(&use_database);
+                let db = ShareDatabase::try_create(self.ctx.clone(), db_info)?;
+                db.list_tables_history().await
+            } else {
+                Err(ErrorCode::UnknownDatabase(format!(
+                    "cannot find database {} from share {}",
+                    db_name, self.option.share_name,
+                )))
+            }
+        } else {
+            Err(ErrorCode::ShareHasNoGrantedDatabase(format!(
+                "share {}.{} has no granted database",
+                self.option.provider, self.option.share_name,
+            )))
+        }
     }
 
     #[async_backtrace::framed]
     async fn create_table(&self, _req: CreateTableReq) -> Result<CreateTableReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot create table in HIVE catalog",
+            "Cannot create table in SHARE catalog",
         ))
     }
 
     #[async_backtrace::framed]
     async fn drop_table_by_id(&self, _req: DropTableByIdReq) -> Result<DropTableReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot drop table in HIVE catalog",
+            "Cannot drop table in SHARE catalog",
         ))
     }
 
     #[async_backtrace::framed]
     async fn undrop_table(&self, _req: UndropTableReq) -> Result<UndropTableReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot undrop table in HIVE catalog",
+            "Cannot undrop table in SHARE catalog",
         ))
     }
 
     #[async_backtrace::framed]
     async fn commit_table_meta(&self, _req: CommitTableMetaReq) -> Result<CommitTableMetaReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot commit_table_meta in HIVE catalog",
+            "Cannot commit_table_meta in SHARE catalog",
         ))
     }
 
     #[async_backtrace::framed]
     async fn rename_table(&self, _req: RenameTableReq) -> Result<RenameTableReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot rename table in HIVE catalog",
+            "Cannot rename table in SHARE catalog",
         ))
     }
 
@@ -394,7 +520,7 @@ impl Catalog for ShareCatalog {
         _req: UpsertTableOptionReq,
     ) -> Result<UpsertTableOptionReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot upsert table option in HIVE catalog",
+            "Cannot upsert table option in SHARE catalog",
         ))
     }
 
@@ -404,7 +530,7 @@ impl Catalog for ShareCatalog {
         _req: SetTableColumnMaskPolicyReq,
     ) -> Result<SetTableColumnMaskPolicyReply> {
         Err(ErrorCode::Unimplemented(
-            "Cannot set_table_column_mask_policy in HIVE catalog",
+            "Cannot set_table_column_mask_policy in SHARE catalog",
         ))
     }
 

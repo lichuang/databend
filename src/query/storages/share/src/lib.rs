@@ -15,7 +15,6 @@
 #![allow(clippy::uninlined_format_args)]
 
 mod share;
-mod share_catalog;
 
 pub use share::get_share_spec_location;
 pub use share::remove_share_db_dir;

@@ -202,9 +202,12 @@ impl Database for ShareDatabase {
         &self.db_info
     }
 
-    fn get_table_by_info(&self, table_info: &TableInfo) -> Result<Arc<dyn Table>> {
-        let storage = self.ctx.storage_factory.clone();
-        storage.get_table(table_info)
+    fn get_table_by_info(&self, _table_info: &TableInfo) -> Result<Arc<dyn Table>> {
+        // let storage = self.ctx.storage_factory.clone();
+        // storage.get_table(table_info)
+        Err(ErrorCode::PermissionDenied(
+            "Permission denied, cannot get_table_by_info from a shared database".to_string(),
+        ))
     }
 
     // Get one table by db and table name.

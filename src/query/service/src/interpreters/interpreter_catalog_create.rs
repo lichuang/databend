@@ -15,6 +15,7 @@
 use std::sync::Arc;
 
 use databend_common_catalog::catalog::CatalogManager;
+use databend_common_exception::ErrorCode;
 use databend_common_exception::Result;
 use databend_common_meta_api::ShareApi;
 use databend_common_meta_app::schema::CatalogIdIdent;
@@ -23,7 +24,7 @@ use databend_common_meta_app::schema::CatalogMeta;
 use databend_common_meta_app::schema::CatalogNameIdent;
 use databend_common_meta_app::schema::CatalogOption;
 use databend_common_meta_app::schema::ShareCatalogOption;
-use databend_common_meta_app::share::share_name_ident::ShareNameIdent;
+use databend_common_meta_app::share::GetShareEndpointReq;
 use databend_common_meta_app::tenant::Tenant;
 use databend_common_sharing::ShareEndpointClient;
 use databend_common_sql::plans::CreateCatalogPlan;
@@ -47,7 +48,7 @@ impl CreateCatalogInterpreter {
     }
 
     // make sure ShareSpec exists
-    fn check_share(&self, share_option: &ShareCatalogOption) -> Result<()> {
+    async fn check_share(&self, share_option: &ShareCatalogOption) -> Result<()> {
         let share_name = &share_option.share_name;
         let share_endpoint = &share_option.share_endpoint;
         let provider = &share_option.provider;
@@ -101,7 +102,7 @@ impl Interpreter for CreateCatalogInterpreter {
         let catalog_manager = CatalogManager::instance();
 
         if let CatalogOption::Share(share_option) = &self.plan.meta.catalog_option {
-            self.check_share(share_option)?;
+            self.check_share(share_option).await?;
         }
 
         // Build and check if catalog is valid.
