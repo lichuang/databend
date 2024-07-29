@@ -106,6 +106,8 @@ pub enum ShareObject {
     Database(String, u64),
     // (table name, db_id, table id)
     Table(String, u64, u64),
+    // (view name, db_id, table id)
+    View(String, u64, u64),
 }
 
 impl ShareObject {
@@ -116,6 +118,9 @@ impl ShareObject {
             }
             ShareGrantObjectSeqAndId::Table(name, db_id, _seq, table_id, _meta) => {
                 ShareObject::Table(name.to_owned(), *db_id, *table_id)
+            }
+            ShareGrantObjectSeqAndId::View(name, db_id, _seq, table_id, _meta) => {
+                ShareObject::View(name.to_owned(), *db_id, *table_id)
             }
         }
     }
@@ -129,6 +134,9 @@ impl Display for ShareObject {
             }
             ShareObject::Table(name, _db_id, _table_id) => {
                 write!(f, "table {}", name)
+            }
+            ShareObject::View(name, _db_id, _table_id) => {
+                write!(f, "view {}", name)
             }
         }
     }
@@ -245,6 +253,25 @@ impl ShareMetaV2 {
                 }
                 _ => {}
             },
+
+            ShareObject::View(name, db_id, table_id) => match privileges {
+                ShareGrantObjectPrivilege::Select => {
+                    for table in &mut self.table {
+                        if table.table_id == *table_id {
+                            return Ok(());
+                        }
+                    }
+                    self.table.push(ShareTable {
+                        privileges: BitFlags::from(privileges),
+                        name: name.to_string(),
+                        db_id: *db_id,
+                        grant_on,
+                        table_id: *table_id,
+                        engine: "VIEW".to_string(),
+                    })
+                }
+                _ => {}
+            },
         }
 
         Ok(())
@@ -270,6 +297,13 @@ impl ShareMetaV2 {
                 }
             }
             ShareObject::Table(_table_name, _db_id, table_id) => {
+                for table in &self.table {
+                    if table.table_id == *table_id {
+                        return Ok(table.has_granted_privileges(privileges));
+                    }
+                }
+            }
+            ShareObject::View(_table_name, _db_id, table_id) => {
                 for table in &self.table {
                     if table.table_id == *table_id {
                         return Ok(table.has_granted_privileges(privileges));

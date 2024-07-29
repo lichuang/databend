@@ -104,7 +104,8 @@ pub async fn remove_share_table_object(
 ) -> Result<()> {
     for share_object in revoke_share_object {
         match share_object {
-            ShareObject::Table(_share_table, db_id, table_id) => {
+            ShareObject::Table(_share_table, db_id, table_id)
+            | ShareObject::View(_share_table, db_id, table_id) => {
                 let location = share_table_info_location(tenant, share_name, *db_id, *table_id);
 
                 operator.delete(&location).await?;
