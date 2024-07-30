@@ -379,6 +379,7 @@ impl FuseTable {
                     Ok(data) => {
                         let bs = data.to_vec();
                         let s = str::from_utf8(&bs)?;
+                        println!("snapshot_loc: {:?}", s);
                         Ok(Some(s.to_string()))
                     }
                     Err(e) => {

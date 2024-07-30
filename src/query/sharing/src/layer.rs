@@ -165,6 +165,7 @@ impl Access for SharedAccessor {
 
     #[async_backtrace::framed]
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        println!("stat path: {}", path);
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
